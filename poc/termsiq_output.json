@@ -1,0 +1,53 @@
+{
+  "record_id": "Hertz-ES-1781349555",
+  "supplier": "Hertz",
+  "pickup_country": "ES",
+  "source_url": "local:///tmp/sample_tc.txt",
+  "document_hash": "8c7c641b484bb7c7ebc02ca6dbf90a7d",
+  "ingested_at": "2026-06-13T11:19:14.760206+00:00",
+  "extracted_at": "2026-06-13T11:19:15.449161+00:00",
+  "extraction_model": "gpt-4o",
+  "overall_confidence": "HIGH",
+  "requires_human_review": false,
+  "low_confidence_fields": [],
+  "validation_flags": [],
+  "status": "APPROVED_AUTO",
+  "fields": {
+    "tpl_amount": {
+      "value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+      "confidence": "HIGH",
+      "source_text": "Third party liability as required by Spanish law",
+      "source": "COB Minimum Amount of Coverage 2026 (data date: Dec-25)",
+      "source_url": "https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf",
+      "disclaimer": "Figures provided for information only. COB assumes no responsibility for accuracy or future changes.",
+      "note": null,
+      "resolution_method": "COB_LOOKUP"
+    },
+    "grace_period_minutes": {
+      "value": 29,
+      "confidence": "HIGH",
+      "source_text": "Reservations not collected within 29 minutes will be cancelled"
+    },
+    "licence_rules": {
+      "value": "Valid driving licence held for minimum 1 year required. International Driving Permit required for non-EU licences. Minimum age 21.",
+      "confidence": "HIGH",
+      "source_text": "A valid driving licence issued at least 12 months prior"
+    },
+    "payment_rules": {
+      "value": "Credit card required for security deposit. Debit cards not accepted for deposit. Prepaid cards not accepted.",
+      "confidence": "HIGH",
+      "source_text": "A valid credit card in the main driver's name is required"
+    },
+    "cross_border_conditions": {
+      "value": "Cross-border travel requires prior written authorisation. Travel to Morocco, Albania, Kosovo prohibited without special permit.",
+      "confidence": "MEDIUM",
+      "source_text": "Cross-border travel must be authorised in advance"
+    }
+  },
+  "api_metadata": {
+    "extraction_method": "AI",
+    "model_provider": "OpenAI GPT-4o",
+    "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
+    "last_updated": "2026-06-13T11:19:15.449261+00:00"
+  }
+}

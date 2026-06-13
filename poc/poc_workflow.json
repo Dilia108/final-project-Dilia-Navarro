@@ -1,0 +1,244 @@
+{
+  "name": "TermsIQ — T&C Extraction POC",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }]
+        }
+      },
+      "id": "node-trigger",
+      "name": "Schedule Trigger (Daily 08:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "notes": "Triggers daily at 08:00 to check for new or updated supplier T&C documents. In production this would also be triggered on document upload via webhook."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf",
+        "options": {
+          "response": { "response": { "responseFormat": "file" } },
+          "timeout": 30000
+        }
+      },
+      "id": "node-fetch-doc",
+      "name": "Fetch Supplier Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 300],
+      "notes": "Fetches the Hertz Spain T&C PDF from the public Hertz document URL. In production: accepts PDFs via SFTP, email attachment, or supplier upload portal. Other suppliers (Sixt, Avis, Europcar, etc.) have their own URL patterns or delivery methods."
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "node-extract-text",
+      "name": "Extract Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [540, 300],
+      "notes": "Extracts raw text from the PDF binary. Handles multi-page PDFs. In production: OCR is applied to scanned documents using a pre-processing step before this node."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pre-process: strip non-T&C content to reduce token count\n// This removes common boilerplate sections that don't contain T&C fields\nconst rawText = $input.first().json.text || '';\n\n// Truncate to first 12000 chars to stay within token limits for POC\n// In production: intelligent section detection identifies relevant clauses\nconst truncated = rawText.substring(0, 12000);\n\n// Generate a simple hash for change detection\nconst hash = require('crypto')\n  .createHash('md5')\n  .update(rawText)\n  .digest('hex');\n\nreturn [{\n  json: {\n    processedText: truncated,\n    documentHash: hash,\n    supplier: 'Hertz',\n    pickupCountry: 'ES',\n    sourceUrl: 'https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf',\n    ingestedAt: new Date().toISOString(),\n    characterCount: rawText.length\n  }\n}];"
+      },
+      "id": "node-preprocess",
+      "name": "Pre-process & Hash Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "notes": "Truncates document to relevant sections, generates MD5 hash for change detection. In production: hash is compared against stored hash — if unchanged, extraction is skipped (cost optimisation)."
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a specialist in car rental terms and conditions extraction. Your task is to extract exactly five specific fields from the provided car rental supplier T&C document. You must respond ONLY with valid JSON — no preamble, no explanation, no markdown code fences. If a field is not mentioned or cannot be determined from the document, use null for the value and set confidence to 'LOW'. Be precise and conservative — only extract what is explicitly stated."
+            },
+            {
+              "role": "user",
+              "content": "Extract the following 5 fields from this car rental T&C document for supplier: {{ $json.supplier }}, pickup country: {{ $json.pickupCountry }}.\n\nFields to extract:\n1. tpl_amount: The third party liability coverage amount. If the document states 'statutory minimum applies' or similar, set value to 'STATUTORY_MINIMUM' and confidence to 'HIGH'.\n2. grace_period_minutes: The grace period before a no-show cancellation, in minutes. Extract as a number.\n3. licence_rules: Key licence acceptance rules — what licences are accepted, rejected, or require translation. Be specific about country combinations.\n4. payment_rules: Which payment methods are accepted for deposit and rental. Distinguish credit card vs debit card requirements.\n5. cross_border_conditions: Any restrictions or requirements for taking the vehicle across national borders.\n\nFor each field provide:\n- value: the extracted information (string, number, or null)\n- confidence: HIGH (clearly stated), MEDIUM (implied or requires inference), LOW (absent or very unclear)\n- source_text: the exact phrase from the document that supports the extraction (max 100 chars, or null)\n\nDocument text:\n{{ $json.processedText }}\n\nRespond with ONLY this JSON structure:\n{\n  \"tpl_amount\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"grace_period_minutes\": {\"value\": null, \"confidence\": \"\", \"source_text\": \"\"},\n  \"licence_rules\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"payment_rules\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"cross_border_conditions\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"}\n}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0,
+          "maxTokens": 1000
+        }
+      },
+      "id": "node-openai-extract",
+      "name": "OpenAI GPT-4o — Extract T&C Fields",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [980, 300],
+      "credentials": {
+        "openAiApi": { "id": "openai-cred", "name": "OpenAI API" }
+      },
+      "notes": "Primary extraction using GPT-4o. Temperature=0 for deterministic, consistent outputs. In production: prompt caching is used for the system prompt across all extraction calls (major cost saving). Fallback to Anthropic Claude if this node fails or confidence is LOW on all fields."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse LLM JSON output and apply validation rules\nconst llmResponse = $input.first().json.message?.content || $input.first().json.text || '{}';\nconst upstream = $('Pre-process & Hash Document').first().json;\n\nlet extracted;\ntry {\n  // Strip markdown fences if present (defensive)\n  const cleaned = llmResponse.replace(/```json\\n?|```\\n?/g, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch(e) {\n  extracted = {\n    tpl_amount: {value: null, confidence: 'LOW', source_text: null},\n    grace_period_minutes: {value: null, confidence: 'LOW', source_text: null},\n    licence_rules: {value: null, confidence: 'LOW', source_text: null},\n    payment_rules: {value: null, confidence: 'LOW', source_text: null},\n    cross_border_conditions: {value: null, confidence: 'LOW', source_text: null}\n  };\n}\n\n// Validation rules\nconst CONFIDENCE_ORDER = ['HIGH', 'MEDIUM', 'LOW'];\nconst validationFlags = [];\n\n// Grace period sanity check\nif (extracted.grace_period_minutes?.value !== null) {\n  const gp = parseInt(extracted.grace_period_minutes.value);\n  if (isNaN(gp) || gp < 0 || gp > 480) {\n    validationFlags.push('grace_period_out_of_range');\n    extracted.grace_period_minutes.confidence = 'LOW';\n  }\n}\n\n// Count low confidence fields\nconst lowConfidenceFields = Object.entries(extracted)\n  .filter(([k, v]) => v?.confidence === 'LOW')\n  .map(([k]) => k);\n\n// Determine overall record status\nconst requiresHumanReview = lowConfidenceFields.length >= 2 || validationFlags.length > 0;\nconst overallConfidence = lowConfidenceFields.length === 0 ? 'HIGH' :\n  lowConfidenceFields.length <= 2 ? 'MEDIUM' : 'LOW';\n\n// Check if TPL is STATUTORY_MINIMUM — needs COB lookup\nconst tplNeedsCobLookup = extracted.tpl_amount?.value === 'STATUTORY_MINIMUM' ||\n  extracted.tpl_amount?.value === null;\n\nreturn [{\n  json: {\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    sourceUrl: upstream.sourceUrl,\n    documentHash: upstream.documentHash,\n    ingestedAt: upstream.ingestedAt,\n    extractedAt: new Date().toISOString(),\n    extractionModel: 'gpt-4o',\n    fields: extracted,\n    overallConfidence,\n    requiresHumanReview,\n    lowConfidenceFields,\n    validationFlags,\n    tplNeedsCobLookup\n  }\n}];"
+      },
+      "id": "node-validate",
+      "name": "Validate & Score Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "notes": "Applies validation rules: grace period range check (0–480 min), counts low-confidence fields, determines if human review is required, flags if COB lookup is needed for TPL. In production: additional rules include cross-referencing known supplier policy patterns and checking for contradictions between fields."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "id": "cob-check",
+              "leftValue": "={{ $json.tplNeedsCobLookup }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-tpl-check",
+      "name": "TPL needs COB lookup?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1420, 300],
+      "notes": "Routes to COB lookup if TPL was not explicitly stated in the supplier document. This is the expected case for most European suppliers — they reference statutory minimum rather than stating a number."
+    },
+    {
+      "parameters": {
+        "jsCode": "// COB 2026 statutory minimum TPL lookup table\n// Source: Council of Bureaux, Minimum Amount of Coverage 2026 (April 2026 edition)\n// Disclaimer: Figures provided for information only. COB assumes no responsibility for accuracy.\nconst COB_2026 = {\n  'DE': { personal_injury: '€7,500,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'ES': { personal_injury: '€70,000,000', property_damage: '€15,000,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'IT': { personal_injury: '€6,450,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'GB': { personal_injury: '£1,200,000', property_damage: '£1,200,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'NO': { personal_injury: 'Unlimited', property_damage: '€8,484,643', data_date: 'Dec-25', confidence: 'HIGH' },\n  'CH': { personal_injury: 'CHF 5,000,000 per claim', property_damage: null, data_date: 'Nov-24', confidence: 'HIGH' },\n  'AT': { personal_injury: null, property_damage: null, data_date: 'Oct-21', confidence: 'NONE', note: 'No data submitted to COB — manual verification required' },\n  'FR': { personal_injury: 'Unlimited', property_damage: 'Unlimited', data_date: 'Mar-22', confidence: 'MEDIUM', note: 'Unlimited — not displayable as a numeric value' },\n  'NL': { personal_injury: '€6,070,000', property_damage: '€1,220,000', data_date: 'Nov-20', confidence: 'MEDIUM', note: 'Stale — data from Nov-20' },\n  'BE': { personal_injury: '€129,550,507', property_damage: 'Unlimited', data_date: 'Dec-25', confidence: 'HIGH' },\n  'PL': { personal_injury: '€5,210,000', property_damage: '€1,050,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'PT': { personal_injury: '€6,450,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' }\n};\n\nconst country = $json.pickupCountry?.toUpperCase();\nconst cobData = COB_2026[country];\n\nlet tplResolved;\nif (cobData && cobData.confidence !== 'NONE') {\n  tplResolved = {\n    value: `Personal injury: ${cobData.personal_injury} | Property damage: ${cobData.property_damage || 'see COB'}`,\n    confidence: cobData.confidence,\n    source: `COB Minimum Amount of Coverage 2026 (data date: ${cobData.data_date})`,\n    source_url: 'https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf',\n    disclaimer: 'Figures provided for information only. COB assumes no responsibility for accuracy or future changes.',\n    note: cobData.note || null\n  };\n} else {\n  tplResolved = {\n    value: null,\n    confidence: 'NONE',\n    source: 'COB 2026',\n    source_url: 'https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf',\n    disclaimer: 'No COB data available for this country — manual verification required.',\n    note: cobData?.note || 'Country not found in COB 2026 dataset'\n  };\n}\n\n// Merge COB result into the fields\nconst updatedFields = { ...$json.fields };\nupdatedFields.tpl_amount = {\n  ...updatedFields.tpl_amount,\n  ...tplResolved,\n  resolution_method: 'COB_LOOKUP'\n};\n\nreturn [{ json: { ...$json, fields: updatedFields, tplResolvedViaCob: true } }];"
+      },
+      "id": "node-cob-lookup",
+      "name": "COB 2026 Statutory Minimum Lookup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 180],
+      "notes": "Looks up the statutory minimum TPL amount from the COB 2026 reference table for the pickup country. In production: this table is maintained as a database table, updated monthly by monitoring cobx.org for new editions. The COB disclaimer is included in every API response that references COB data."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "id": "review-check",
+              "leftValue": "={{ $json.requiresHumanReview }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-review-check",
+      "name": "Requires human review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1860, 300],
+      "notes": "Routes records with 2+ LOW confidence fields or validation flags to the human review queue. Records with HIGH or MEDIUM overall confidence proceed directly to the knowledge base."
+    },
+    {
+      "parameters": {
+        "subject": "=TermsIQ: Human Review Required — {{ $json.supplier }} / {{ $json.pickupCountry }}",
+        "message": "=A T&C extraction requires your review before going live in the API.\n\nSupplier: {{ $json.supplier }}\nPickup Country: {{ $json.pickupCountry }}\nExtracted: {{ $json.extractedAt }}\nOverall Confidence: {{ $json.overallConfidence }}\n\nLow confidence fields: {{ $json.lowConfidenceFields.join(', ') }}\nValidation flags: {{ $json.validationFlags.join(', ') || 'none' }}\n\nExtracted fields:\n{{ JSON.stringify($json.fields, null, 2) }}\n\nSource document: {{ $json.sourceUrl }}\n\nPlease review and approve or correct in the TermsIQ review interface.",
+        "options": {}
+      },
+      "id": "node-email-review",
+      "name": "Send to Human Review Queue",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2080, 180],
+      "credentials": {
+        "smtp": { "id": "smtp-cred", "name": "SMTP" }
+      },
+      "notes": "Sends low-confidence extractions to the content team review queue via email. In production: this routes to a dedicated review interface (web app) where the content team can see the extracted value alongside the source document, edit if needed, and approve. No extracted field goes live in the API without passing this gate."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the final API-ready output record\n// This is what gets written to the T&C knowledge base\n// and served via the aggregator API\n\nconst record = {\n  // Identity\n  record_id: `${$json.supplier}-${$json.pickupCountry}-${Date.now()}`,\n  supplier: $json.supplier,\n  pickup_country: $json.pickupCountry,\n  \n  // Provenance\n  source_url: $json.sourceUrl,\n  document_hash: $json.documentHash,\n  ingested_at: $json.ingestedAt,\n  extracted_at: $json.extractedAt,\n  extraction_model: $json.extractionModel,\n  \n  // Status\n  overall_confidence: $json.overallConfidence,\n  status: 'APPROVED_AUTO', // auto-approved; human-reviewed records use 'APPROVED_HUMAN'\n  \n  // The five critical T&C fields\n  fields: {\n    tpl_amount: $json.fields.tpl_amount,\n    grace_period_minutes: $json.fields.grace_period_minutes,\n    licence_rules: $json.fields.licence_rules,\n    payment_rules: $json.fields.payment_rules,\n    cross_border_conditions: $json.fields.cross_border_conditions\n  },\n  \n  // API metadata for downstream OTA consumption\n  api_metadata: {\n    extraction_method: 'AI',\n    model_provider: 'OpenAI GPT-4o',\n    data_disclaimer: 'T&C data is AI-extracted from supplier documents. Always verify critical information with the supplier directly.',\n    last_updated: $json.extractedAt\n  }\n};\n\nconsole.log('TermsIQ record ready for knowledge base:', JSON.stringify(record, null, 2));\n\nreturn [{ json: record }];"
+      },
+      "id": "node-build-record",
+      "name": "Build API-ready Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2080, 420],
+      "notes": "Assembles the final structured record in the schema that will be written to the T&C knowledge base and served via the aggregator API. In production: this record is written to PostgreSQL keyed by supplier × pickup_country × field_type, with full version history retained."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://your-termsiq-api.example.com/api/v1/tc-records",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [{ "name": "record", "value": "={{ JSON.stringify($json) }}" }]
+        },
+        "options": { "timeout": 10000 }
+      },
+      "id": "node-store",
+      "name": "Store in Knowledge Base (API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 420],
+      "notes": "POC: writes the record to a placeholder API endpoint. In production: writes directly to the PostgreSQL knowledge base. The record is versioned — the previous value is not deleted, it is marked as superseded with an end_date timestamp."
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily 08:00)": {
+      "main": [[{ "node": "Fetch Supplier Document", "type": "main", "index": 0 }]]
+    },
+    "Fetch Supplier Document": {
+      "main": [[{ "node": "Extract Text from PDF", "type": "main", "index": 0 }]]
+    },
+    "Extract Text from PDF": {
+      "main": [[{ "node": "Pre-process & Hash Document", "type": "main", "index": 0 }]]
+    },
+    "Pre-process & Hash Document": {
+      "main": [[{ "node": "OpenAI GPT-4o — Extract T&C Fields", "type": "main", "index": 0 }]]
+    },
+    "OpenAI GPT-4o — Extract T&C Fields": {
+      "main": [[{ "node": "Validate & Score Extraction", "type": "main", "index": 0 }]]
+    },
+    "Validate & Score Extraction": {
+      "main": [[{ "node": "TPL needs COB lookup?", "type": "main", "index": 0 }]]
+    },
+    "TPL needs COB lookup?": {
+      "main": [
+        [{ "node": "COB 2026 Statutory Minimum Lookup", "type": "main", "index": 0 }],
+        [{ "node": "Requires human review?", "type": "main", "index": 0 }]
+      ]
+    },
+    "COB 2026 Statutory Minimum Lookup": {
+      "main": [[{ "node": "Requires human review?", "type": "main", "index": 0 }]]
+    },
+    "Requires human review?": {
+      "main": [
+        [{ "node": "Send to Human Review Queue", "type": "main", "index": 0 }],
+        [{ "node": "Build API-ready Record", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build API-ready Record": {
+      "main": [[{ "node": "Store in Knowledge Base (API)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "n8nVersion": "1.0.0"
+  },
+  "tags": [{ "name": "TermsIQ", "createdAt": "2026-06-13" }]
+}
