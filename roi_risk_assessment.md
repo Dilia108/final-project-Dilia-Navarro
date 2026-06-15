@@ -12,13 +12,10 @@ Version 1.3 — June 2026
 |---|---|---|---|---|
 | AI/NLP engineer (contract, 6 months) | Development | €48,000 | €72,000 | Senior contractor, Germany-based, €8–12k/mo loaded |
 | Backend engineer (contract, 6 months) | Development | €36,000 | €60,000 | Senior contractor, Germany-based, €6–10k/mo loaded |
-| AI consultant / prompt engineering | Development | €5,000 | €12,000 | One-off specialist engagement for extraction design and few-shot example library |
-| **Fine-tuning dataset annotation (weeks 1–4)** | Development | €3,000 | €6,000 | Content team annotating 150 documents × 5 fields = 750 labelled examples; 37–75 hours at loaded content team cost |
-| **Fine-tuning compute (v2 model)** | Tools/licences | €500 | €2,000 | OpenAI fine-tuning API or equivalent; one-off training run on 750 examples |
+| AI consultant / prompt engineering | Development | €5,000 | €12,000 | One-off specialist engagement for extraction design and per-supplier few-shot example library |
 | Cloud infrastructure setup (Germany region) | Infrastructure | €1,200 | €3,600 | 6 months × €200–600/mo during build |
 | Vector DB / document storage setup | Infrastructure | €0 | €600 | Qdrant or pgvector, EU-hosted; free tier viable at MVP |
-| OpenAI GPT-4o API — initial batch extraction (primary) | Tools/licences | €50 | €800 | One-off batch across all supplier/country combinations; OpenAI via Azure Germany region for data residency |
-| Anthropic Claude API — fallback extraction | Tools/licences | €10 | €200 | Fallback provider; low volume in normal operation |
+| OpenAI GPT-4o API — initial batch extraction | Tools/licences | €50 | €800 | One-off batch across all supplier/country combinations; OpenAI via Azure Germany North for data residency |
 | GDPR / data flow documentation | Compliance | €1,000 | €3,000 | Legal/DPO review of pipeline data flows |
 | Legal review (web scraping, IP, liability) | Compliance | €3,000 | €8,000 | External legal counsel, one-off |
 | EU AI Act classification review | Compliance | €2,000 | €5,000 | One-off classification and documentation |
@@ -26,8 +23,8 @@ Version 1.3 — June 2026
 | Content team training and workflow redesign | Change management | €3,000 | €5,000 | Workshops + documentation |
 | Supplier communication programme | Change management | €2,000 | €4,000 | Informing suppliers of document feed requirements |
 | Stakeholder validation workshops | Change management | €2,000 | €3,000 | 3 workshops across build phase |
-| **Total upfront (Year 1, months 1–6)** | | **€105,250** | **€180,950** | |
-| **Midpoint estimate used for ROI** | | **€143,000** | | |
+| **Total upfront (Year 1, months 1–6)** | | **€101,750** | **€172,950** | |
+| **Midpoint estimate used for ROI** | | **€137,350** | | |
 
 ---
 
@@ -37,20 +34,17 @@ Version 1.3 — June 2026
 |---|---|---|---|---|
 | AI/NLP engineer (reduced to part-time or hire) | €4,000 | €7,000 | €24,000–42,000 | €48,000–84,000 |
 | Backend engineer (maintenance, part-time) | €2,000 | €4,000 | €12,000–24,000 | €24,000–48,000 |
-| OpenAI GPT-4o API — ongoing (primary) | €10 | €75 | €60–450 | €120–900 |
-| Anthropic Claude API — ongoing fallback | €5 | €20 | €30–120 | €60–240 |
-| **Fine-tuned model inference (v2, from month 4)** | €5 | €30 | €30–180 | €60–360 |
-| *Note: fine-tuned model replaces GPT-4o for standard extractions from v2; GPT-4o retained for edge cases only — net inference cost falls 40–60% vs v1* | | | | |
+| OpenAI GPT-4o API — ongoing | €10 | €75 | €60–450 | €120–900 |
 | Cloud hosting (Germany region) | €300 | €1,000 | €1,800–6,000 | €3,600–12,000 |
 | Document storage | €50 | €200 | €300–1,200 | €600–2,400 |
 | Monitoring and accuracy review | €500 | €1,000 | €3,000–6,000 | €6,000–12,000 |
 | Model/prompt maintenance | €500 | €1,000 | €3,000–6,000 | €6,000–12,000 |
 | Compliance upkeep (GDPR, EU AI Act annual review) | €100 | €200 | €600–1,200 | €1,200–2,400 |
-| **Total ongoing per month** | **€7,460** | **€14,475** | | |
-| **Total ongoing months 7–12** | | | **€44,760–86,850** | |
-| **Total ongoing Year 2–3 (per year)** | | | | **€89,520–173,700** |
-| **Midpoint ongoing Year 1 (months 7–12)** | | | **€65,805** | |
-| **Midpoint ongoing Year 2–3 (per year)** | | | | **€131,610** |
+| **Total ongoing per month** | **€7,460** | **€14,425** | | |
+| **Total ongoing months 7–12** | | | **€44,760–86,550** | |
+| **Total ongoing Year 2–3 (per year)** | | | | **€89,520–173,100** |
+| **Midpoint ongoing Year 1 (months 7–12)** | | | **€65,655** | |
+| **Midpoint ongoing Year 2–3 (per year)** | | | | **€131,310** |
 
 ---
 
@@ -171,13 +165,10 @@ T&C-related counter disputes (wrong payment, cancelled booking, rejected licence
 | A8 | Regulatory action probability | 10% per year | EC has active enforcement programme; aggregators in scope; precedent set with major suppliers |
 | A9 | Regulatory exposure if actioned | €50k–500k | Based on EC enforcement precedents; Directive 93/13/EEC; GDPR fine scale |
 | A10 | Incremental OTA revenue | €30k/year | Conservative low-end connectivity fee for mid-size OTA; one new OTA per year |
-| A11 | LLM API costs — dual provider | OpenAI GPT-4o primary (via Azure Germany); Anthropic Claude fallback | T&C documents are infrequently updated; API cost is not the material cost driver for either provider. Azure OpenAI used for Germany data residency compliance. |
+| A11 | LLM API costs — single provider | OpenAI GPT-4o (via Azure Germany North) | T&C documents are infrequently updated; API cost is not the material cost driver. Azure OpenAI used for Germany data residency compliance. Single-provider architecture — nightly batch; failed runs retry the following night. |
 | A12 | Infrastructure (Germany region) | €300–1,000/mo ongoing | AWS Frankfurt or equivalent; FastAPI + PostgreSQL + Qdrant stack |
 | A13 | System goes live | Month 7 | Allows 6 months build + validation before production |
 | A14 | Benefits accrue linearly from go-live | Full annual rate from month 7 | Conservative — ramp-up may mean lower benefit in first months live |
-| A15 | Fine-tuning dataset annotation | 150 documents × 15–30 min = 37–75 hours | Documents publicly available now; content team annotates in parallel with v1 build during weeks 1–4 |
-| A16 | Fine-tuned model cost saving (v2) | 40–60% reduction in ongoing inference cost | Fine-tuned smaller model (GPT-4o-mini or open-weight) runs at fraction of GPT-4o cost per token; accuracy equal or better on domain-specific task |
-| A17 | Fine-tuning ready at v2 launch | Month 3–4 | Annotation weeks 1–4; fine-tuning run week 5; validation weeks 6–8; deployed at v2 |
 
 ---
 
@@ -187,33 +178,17 @@ T&C-related counter disputes (wrong payment, cancelled booking, rejected licence
 
 The customer service savings estimate in Section 1.3 (Stream 1) is built from proxy assumptions rather than actual booking-to-complaint data. This reflects a real structural gap: the dataset linking booking ID → T&C served → complaint outcome does not exist publicly or within any single organisation in the distribution chain. The aggregator holds the T&C served; the OTA receives the complaint; neither has the full picture.
 
-**Two-track modelling AI roadmap**
+**Modelling AI roadmap**
 
-TermsIQ has two distinct and independent paths toward modelling AI — on very different timelines.
+TermsIQ v1 is built on prompt engineering with per-supplier few-shot examples — no custom model training required. The path to modelling AI opens in v2 once live data exists.
 
-**Track A — Fine-tuning for terminology normalisation (weeks 1–4, v2)**
-
-The training data for this model exists right now. The 10 in-scope suppliers across 15 countries produce approximately 150 publicly available T&C documents. Annotating each document for the 5 critical fields takes 15–30 minutes per document — 37–75 hours total for one content team member. Running in parallel with the v1 build during weeks 1–4, the full labelled dataset of 750 examples is achievable before v1 even goes live.
-
-This dataset is used to fine-tune a smaller, faster model specifically on the car rental T&C extraction task. The fine-tuned model learns supplier-specific terminology patterns as weighted parameters — it knows that Goldcar calls TPL "RC", that Sixt Germany buries the grace period in a cancellation footnote, that "non-cancellation window" and "vehicle hold time" are the same concept. It runs faster and cheaper than GPT-4o (40–60% inference cost reduction) with equal or better accuracy on this specific task.
-
-The human review queue generates additional training data from go-live onwards — every correction a content team member makes is a new labelled example, feeding quarterly model retraining automatically.
-
-| Milestone | Timeline |
-|---|---|
-| Documents downloaded and organised | Week 1 |
-| Annotation complete (150 docs, 750 examples) | Weeks 2–4 |
-| Fine-tuning run | Week 5 |
-| Validation against held-out test set | Weeks 6–8 |
-| Fine-tuned model deployed (replaces GPT-4o for standard extractions) | v2 launch, month 3–4 |
-
-**Track B — Complaint prediction model (v3, 12–18 months post go-live)**
+**Complaint prediction model (v2, 12–18 months post go-live)**
 
 From the moment TermsIQ goes live, the aggregator begins logging — for the first time — exactly which T&C was served for every booking, with a timestamp and version reference. This is the left side of the closed loop. If OTA partners share complaint outcomes linked to booking IDs (which becomes a more compelling ask once TermsIQ has demonstrated T&C quality improvement), the right side closes.
 
 Once closed, the dataset enables complaint-risk scoring per booking at the point of search — identifying which supplier × destination × T&C field combinations are most likely to generate counter disputes. This is the full predictive modelling AI layer.
 
-**Practical implication for the ROI document:** the 36-month financial model does not include the inference cost saving from fine-tuning (Track A) or the revenue/risk value of the complaint prediction model (Track B). Both would improve the ROI calculation — Track A materially, from month 4 onwards. The model is deliberately conservative on these points.
+**Practical implication for the ROI document:** the 36-month financial model does not include the value of the complaint prediction model (v2). This would improve the ROI calculation further. The model is deliberately conservative on this point.
 
 ---
 
@@ -232,9 +207,9 @@ Once closed, the dataset enables complaint-risk scoring per booking at the point
 | # | Risk | Category | Likelihood (1–5) | Impact (1–5) | Risk Level | Rating | Mitigation strategy |
 |---|---|---|---|---|---|---|---|
 | R1 | **EU AI Act classification triggers transparency or conformity obligations** — TermsIQ processes legal documents and outputs data that affects what consumers are shown at booking. Depending on classification, this may require technical documentation, human oversight logging, or conformity assessment. | Regulatory | 3 | 4 | 12 | **Medium** | Engage legal counsel for EU AI Act classification review before go-live (already budgeted). Build audit trail and confidence score logging into the pipeline from day one. Appoint an AI Act compliance owner internally. |
-| R2 | **GDPR breach or data residency violation** — if any pipeline component routes data outside Germany (e.g. API call to a non-EU model endpoint, third-party monitoring tool), the data residency requirement is violated. Both OpenAI (via Azure) and Anthropic (via API) must be verified for Germany-region data processing before production. | Regulatory | 2 | 5 | 10 | **Medium** | Use Azure OpenAI Service (Germany North region) for the primary OpenAI integration — this provides contractual EU data residency. Verify Anthropic API data processing terms for EU residency compliance before enabling as fallback in production. Conduct GDPR data flow mapping covering both providers before launch. Include data residency as a hard requirement in all vendor contracts. |
+| R2 | **GDPR breach or data residency violation** — if any pipeline component routes data outside Germany (e.g. API call to a non-EU model endpoint, third-party monitoring tool), the data residency requirement is violated. OpenAI (via Azure Germany North) must be verified for Germany-region data processing before production. | Regulatory | 2 | 5 | 10 | **Medium** | Use Azure OpenAI Service (Germany North region) — this provides contractual EU data residency. Conduct GDPR data flow mapping before launch. Include data residency as a hard requirement in all vendor contracts. If the nightly batch fails due to API unavailability, it retries the following night — T&C documents do not change daily, so a one-night delay is operationally acceptable. |
 | R3 | **Web scraping of supplier websites ruled impermissible** — supplier website terms of use may prohibit automated access. If legal review finds scraping is not permitted, the web-crawl ingestion route is blocked. | Regulatory | 3 | 3 | 9 | **Medium** | Default to direct document feed from suppliers (via SFTP or email) as the primary ingestion route. Use web crawling only as a fallback and only after legal sign-off per supplier. Build supplier communication programme to request structured T&C feeds directly. |
-| R4 | **LLM hallucination on critical fields** — the LLM extracts an incorrect value (wrong grace period, wrong TPL amount, wrong licence rule) with high confidence, passes validation, goes live in the API, and causes a customer counter dispute or regulatory complaint. | Technical | 3 | 5 | 15 | **High** | Confidence scoring with mandatory human review below threshold. Ground-truth validation set reviewed by content team before any data goes live. COB cross-check for TPL creates a second-source verification layer. Dual-provider architecture: low-confidence extractions from GPT-4o are automatically re-run on Claude before being flagged for human review — two independent LLM passes on uncertain cases. Legal-defined fallback policy: below minimum confidence threshold, serve "data not available" rather than a potentially incorrect value. |
+| R4 | **LLM hallucination on critical fields — wrong information reaches end customer** — the LLM extracts an incorrect value (wrong grace period, wrong TPL amount, wrong licence rule, wrong payment requirement) with high confidence, passes automated validation, goes live in the API, is displayed to the customer at booking, and causes a counter dispute, a cancelled booking, or a regulatory complaint. This is the highest-priority risk specific to AI systems in this pipeline. The customer acting on incorrect T&C information — arriving with the wrong card, the wrong licence, or without cross-border authorisation — has no recourse at the counter. | Technical / Consumer | 3 | 5 | 15 | **High** | Confidence scoring with mandatory human review below threshold — no field goes live without passing this gate. Ground-truth validation set reviewed by content team before any data goes live. COB cross-check for TPL creates an independent second-source verification layer. Legal-defined fallback policy: below minimum confidence threshold, the API returns `data_not_available` rather than a potentially incorrect value — serving nothing is safer than serving wrong. API response metadata includes source, extracted\_at date, and confidence score so OTA partners and end customers can assess reliability. Data disclaimer included in every API response. Nightly batch design means errors are caught in the review queue before reaching any customer. |
 | R5 | **Integration failure or API contract breakage** — appending new T&C fields to the existing API response causes unexpected behaviour in downstream OTA integrations (field conflicts, schema changes, parsing errors). | Technical | 2 | 4 | 8 | **Medium** | Design T&C fields as strictly additive — no modification of existing fields. Version the API response schema. Run shadow mode (extraction running in parallel without serving to OTAs) for minimum 4 weeks before going live. Provide OTA partners with advance schema documentation and a sandbox environment. |
 | R6 | **Supplier document format changes break the ingestion pipeline** — a supplier changes their PDF layout, URL structure, or switches from PDF to a web-only format, causing extraction to fail silently. | Technical | 4 | 3 | 12 | **Medium** | Change detection monitor checks document hash and structure daily. Pipeline alerts on extraction failure or anomalous confidence score drop. Per-supplier ingestion handlers are modular — a broken handler for one supplier does not affect others. Fallback: serve last known good data with a staleness flag rather than serving nothing. |
 | R7 | **Content team resistance to adoption** — the content team perceives TermsIQ as a threat to their role and either withholds domain knowledge during build or does not engage with the human review queue, reducing data quality. | Operational | 3 | 4 | 12 | **Medium** | Three co-design workshops involving the content team from week 2. Frame the role shift explicitly: from data entry to data governance. Show measurable time saving early (week 6 accuracy review). Involve the content team in defining validation rules and confidence thresholds — their knowledge improves the system. |
@@ -279,7 +254,7 @@ D
 
 ### 2.3 Top Priority Risks
 
-**R4 — LLM hallucination on critical fields** is the single highest-priority risk and the one most specific to AI systems. A confident but incorrect extraction of a grace period or TPL amount that reaches a customer is both a liability and a reputational event. The mitigation — confidence thresholds, human review, COB cross-check, and a "serve nothing rather than serve wrong" fallback policy — must be designed before any data goes live, not added later.
+**R4 — LLM hallucination on critical fields / wrong information to end customer** is the single highest-priority risk and the one most specific to AI systems. A confident but incorrect extraction of a grace period, TPL amount, licence requirement, or payment rule that reaches a customer at booking is both a liability and a reputational event. The customer has no recourse at the counter — they acted on what they were shown. The mitigation — confidence thresholds, mandatory human review, COB cross-check, and a "serve nothing rather than serve wrong" fallback policy — must be designed and operational before any data goes live, not added after the first complaint.
 
 **R1 — EU AI Act classification** is the most likely regulatory risk to materialise before launch. The EU AI Act came into force in 2024 and obligations are phasing in through 2026–2027. A system that processes legal documents and outputs data affecting consumer-facing information at booking requires classification now, not at a compliance audit two years from now.
 
@@ -288,5 +263,5 @@ D
 ---
 
 *TermsIQ — ROI & Risk Assessment*
-*Document version 1.0 — June 2026*
+*Document version 1.4 — June 2026*
 *Prepared as part of TermsIQ project documentation suite*

@@ -68,7 +68,7 @@ Limited risk applies to AI systems that interact with humans in ways where trans
 - Emotion recognition systems
 - **Systems that generate or manipulate content that could be mistaken for human-generated output**
 
-TermsIQ uses LLMs (OpenAI GPT-4o and Anthropic Claude) to read and extract content from documents. The outputs are structured JSON data fields served via API — not text presented to consumers as if written by a human. However, the system:
+TermsIQ uses an LLM (OpenAI GPT-4o via Azure Germany North) to read and extract content from documents. The outputs are structured JSON data fields served via API — not text presented to consumers as if written by a human. However, the system:
 
 1. Uses generative AI models to produce structured outputs
 2. Serves those outputs through a chain that ultimately reaches consumer-facing booking interfaces
@@ -97,7 +97,7 @@ Minimal risk systems (spam filters, AI in video games, etc.) have no mandatory o
 | **Future scope expansion** | If TermsIQ is extended to make individualised recommendations (e.g. "this customer's licence will be rejected at this supplier") it would require reclassification and likely High Risk assessment |
 | **EU AI Act evolution** | The Act's implementing acts and guidelines are still being published as of June 2026. This classification should be reviewed against any new guidance on LLM-based extraction systems |
 | **OTA partner obligations** | OTA partners consuming TermsIQ data via API and displaying it to consumers may have their own transparency obligations under Article 50. The aggregator should include guidance on this in OTA partner contracts |
-| **GPAI model obligations** | OpenAI GPT-4o and Anthropic Claude are General Purpose AI (GPAI) models subject to their own obligations under the EU AI Act (Articles 51–56). The aggregator's obligation is to use compliant GPAI providers — which both OpenAI (via Azure) and Anthropic represent |
+| **GPAI model obligations** | OpenAI GPT-4o is a General Purpose AI (GPAI) model subject to its own obligations under the EU AI Act (Articles 51–56). The aggregator's obligation is to use a compliant GPAI provider — which OpenAI via Azure represents |
 
 ---
 
@@ -150,10 +150,11 @@ Although not mandatory under Limited Risk classification, TermsIQ implements the
 | Requirement | Implementation |
 |---|---|
 | Accuracy targets | ≥95% extraction accuracy on the 5 critical fields, validated against manually verified ground truth |
-| Multi-provider resilience | Dual-provider architecture (OpenAI primary, Anthropic fallback) prevents single-provider failure from causing system outage |
+| Wrong-information-to-customer risk | The highest consumer-facing risk: an incorrect extraction displayed at booking causes a counter dispute with no customer recourse. Mitigated by: confidence thresholds + human review gate (no field goes live unvalidated); COB cross-check for TPL; `data_not_available` fallback below minimum confidence; source and confidence metadata in every API response so OTA partners can make trust decisions |
 | Confidence scoring | Probabilistic confidence attached to every field; low-confidence outputs do not reach production |
 | Supplier format resilience | Modular per-supplier ingestion handlers — a format change at one supplier does not affect others |
 | COB cross-check | Independent second-source verification for TPL amounts reduces single-model error risk |
+| Nightly batch design | Extraction runs overnight, not in real time — errors are caught in the human review queue before any customer sees the data |
 
 ### 2.6 Cybersecurity considerations
 
@@ -161,8 +162,8 @@ Although not mandatory under Limited Risk classification, TermsIQ implements the
 |---|---|
 | Unauthorised access to extracted T&C knowledge base | Access controls on the database; read-only API tokens for OTA partners; write access restricted to the pipeline and authorised content team |
 | Prompt injection via supplier documents | Supplier documents treated as untrusted input; extraction prompts are system-controlled and not exposed to document content influence on system behaviour |
-| API key exposure (OpenAI / Anthropic) | Keys stored in environment secrets manager (e.g. AWS Secrets Manager, Germany region); not hardcoded; rotated quarterly |
-| Supply chain risk (LLM provider) | Dual-provider architecture; provider incident monitoring; fallback switching is automatic |
+| API key exposure (OpenAI) | Keys stored in environment secrets manager (e.g. AWS Secrets Manager, Germany region); not hardcoded; rotated quarterly |
+| Provider incident monitoring | Nightly batch design means an LLM provider outage causes a one-night extraction delay — acceptable given T&C documents do not change daily. Batch retries the following night automatically. |
 | Supplier document tampering | Document hash stored at ingest; any re-ingestion checks hash against stored value to detect tampering |
 
 ---
@@ -178,7 +179,9 @@ Although not mandatory under Limited Risk classification, TermsIQ implements the
 
 TermsIQ is an AI-powered document intelligence pipeline operated by a car rental API aggregator headquartered in Germany. The system automatically extracts structured, machine-readable terms and conditions data from unstructured supplier source documents — including PDFs, Excel files, XML feeds, and web pages — in any language, and serves the extracted data through the aggregator's existing B2B API infrastructure to downstream booking channel partners (OTAs, airline ancillary platforms, travel management companies).
 
-The system uses large language models (OpenAI GPT-4o as primary; Anthropic Claude Sonnet as fallback) to read supplier documents and extract five critical data fields: third-party liability (TPL) coverage amounts, vehicle pickup grace periods, driver licence type acceptance rules, payment method acceptance rules, and cross-border rental conditions. For TPL, the system cross-references statutory minimum amounts from the Council of Bureaux (COB) Minimum Amount of Coverage reference document where supplier documents reference statutory minimums rather than explicit figures.
+The system uses a large language model (OpenAI GPT-4o via Azure Germany North) to read supplier documents and extract five critical data fields: third-party liability (TPL) coverage amounts, vehicle pickup grace periods, driver licence type acceptance rules, payment method acceptance rules, and cross-border rental conditions. For TPL, the system cross-references statutory minimum amounts from the Council of Bureaux (COB) Minimum Amount of Coverage reference document where supplier documents reference statutory minimums rather than explicit figures.
+
+A key risk inherent to this system is **the downstream impact of incorrect AI extraction on end customers**. Extracted T&C data is displayed at the point of booking by OTA partners. A customer who acts on incorrect information — arriving at the counter with an unaccepted payment card, an unaccepted licence, or without cross-border authorisation — has no recourse once the rental contract is refused. This risk is addressed through mandatory confidence thresholds, human review gates, and a "serve nothing rather than serve wrong" fallback policy (see Section 2.3 and 2.5).
 
 All data processing and storage occurs within Germany. The system serves output in English (primary) and German (secondary). It operates entirely at the B2B layer and does not interact directly with end consumers.
 
@@ -202,8 +205,8 @@ All data processing and storage occurs within Germany. The system serves output 
 | Label AI-generated content | Art. 50(1) | Every API response field carries `extraction_method`, `source`, `extracted_at`, and `confidence_score` metadata | ✅ Addressed in design |
 | Inform downstream users (OTAs) of AI involvement | Art. 50(4) | API documentation states AI extraction methodology; OTA contract guidance recommends consumer-facing labelling | ✅ Addressed in design |
 | Human oversight of outputs | Good practice / Art. 50 context | Human review queue for low-confidence extractions; no field goes live without validation | ✅ Addressed in design |
-| Data residency (GDPR / national law) | GDPR Art. 46 / German data law | Azure OpenAI Germany North; all infrastructure Germany-region; Anthropic data processing terms under review | ⚠️ Partial — Anthropic terms require legal confirmation |
-| GPAI provider compliance | Art. 51–56 (provider obligation) | Both OpenAI and Anthropic are subject to GPAI obligations as model providers; aggregator uses them as deployer | ✅ Provider obligation, not aggregator |
+| Data residency (GDPR / national law) | GDPR Art. 46 / German data law | Azure OpenAI Germany North; all infrastructure Germany-region | ✅ Addressed in design |
+| GPAI provider compliance | Art. 51–56 (provider obligation) | OpenAI is subject to GPAI obligations as model provider; aggregator uses it as deployer | ✅ Provider obligation, not aggregator |
 | EU AI Act registration (if required) | Art. 49 | Not required for Limited Risk systems | ✅ Not applicable |
 
 ---
@@ -212,10 +215,9 @@ All data processing and storage occurs within Germany. The system serves output 
 
 | Gap | Description | Resolution | Target |
 |---|---|---|---|
-| **G1 — Anthropic data residency confirmation** | Anthropic's standard API does not currently offer a contractual Germany-region data processing guarantee equivalent to Azure OpenAI. Until confirmed, Anthropic's role as fallback provider carries residency uncertainty. | Legal review of Anthropic Data Processing Agreement; if not resolvable, fallback role restricted to non-personal-data-adjacent tasks only, or replaced with an EU-hosted open-weight model (e.g. Mistral via EU provider) | Before production go-live |
-| **G2 — OTA partner transparency guidance** | OTA partners are not yet contractually required to label TermsIQ-sourced T&C data as AI-generated when displaying it to consumers. | Update OTA partner API agreements to include a transparency clause recommending or requiring consumer-facing labelling of AI-extracted T&C content | Before API go-live to OTA partners |
-| **G3 — Formal EU AI Act classification documentation** | This document represents an internal classification assessment. It has not been reviewed by external legal counsel specialising in EU AI Act compliance. | Commission external AI Act legal review as part of the compliance budget (already budgeted at €2,000–5,000 in the ROI document) | Within 90 days of system build commencement |
-| **G4 — Scope change monitoring** | If TermsIQ scope expands to individualised recommendations (per-booking licence rejection prediction, per-driver risk scoring), the classification must be revisited and may become High Risk. | Establish a scope change review trigger: any new feature that introduces per-individual assessment must trigger a new classification assessment before development begins | Ongoing — embedded in product governance |
+| **G1 — OTA partner transparency guidance** | OTA partners are not yet contractually required to label TermsIQ-sourced T&C data as AI-generated when displaying it to consumers. | Update OTA partner API agreements to include a transparency clause recommending or requiring consumer-facing labelling of AI-extracted T&C content | Before API go-live to OTA partners |
+| **G2 — Formal EU AI Act classification documentation** | This document represents an internal classification assessment. It has not been reviewed by external legal counsel specialising in EU AI Act compliance. | Commission external AI Act legal review as part of the compliance budget (already budgeted at €2,000–5,000 in the ROI document) | Within 90 days of system build commencement |
+| **G3 — Scope change monitoring** | If TermsIQ scope expands to individualised recommendations (per-booking licence rejection prediction, per-driver risk scoring), the classification must be revisited and may become High Risk. | Establish a scope change review trigger: any new feature that introduces per-individual assessment must trigger a new classification assessment before development begins | Ongoing — embedded in product governance |
 
 ---
 
@@ -238,9 +240,8 @@ The following table of contents represents the full technical documentation pack
 **2. System Architecture**
 - 2.1 High-level architecture diagram *(MVP)*
 - 2.2 Pipeline stage descriptions (Ingest → Extract → Validate → Store → Serve)
-- 2.3 LLM provider integration (OpenAI GPT-4o primary; Anthropic Claude fallback)
-- 2.4 Model routing logic and failover behaviour
-- 2.5 Infrastructure stack (FastAPI, PostgreSQL, Qdrant, cloud provider, region)
+- 2.3 LLM provider integration (OpenAI GPT-4o via Azure Germany North)
+- 2.4 Infrastructure stack (FastAPI, PostgreSQL, Qdrant, cloud provider, region)
 - 2.6 API response schema and field definitions
 
 **3. AI Model Information**
@@ -248,7 +249,6 @@ The following table of contents represents the full technical documentation pack
 - 3.2 GPAI model cards / provider documentation references
 - 3.3 Prompt design and extraction schema (system prompt, field definitions, few-shot examples)
 - 3.4 Confidence scoring methodology
-- 3.5 Model routing and fallback criteria
 
 **4. Data Documentation**
 - 4.1 Input data sources (supplier PDFs, Excel, XML, web pages)
@@ -312,6 +312,6 @@ The following table of contents represents the full technical documentation pack
 ---
 
 *TermsIQ — EU AI Act Compliance Documentation*
-*Document version 1.0 — June 2026*
+*Document version 1.1 — June 2026*
 *Classification: Limited Risk — Article 50 EU AI Act*
 *Next review: June 2027 or upon material scope change*

@@ -37,8 +37,7 @@ Supplier Excel/XML ──────────────►  - OCR if scann
                                          │
                                          ▼
 COB reference (cobx.org) ──────────► [2] EXTRACT
-                                    - OpenAI GPT-4o (primary)
-                                    - Anthropic Claude (fallback)
+                                    - OpenAI GPT-4o (Azure Germany North)
                                     - Structured JSON output
                                          │
                                          ▼
@@ -105,12 +104,12 @@ API request logs
 
 | Attribute | Detail |
 |---|---|
-| **What data** | Supplier T&C document content (text) sent to OpenAI GPT-4o or Anthropic Claude API for extraction. Not personal data — supplier commercial documents only. |
+| **What data** | Supplier T&C document content (text) sent to OpenAI GPT-4o (Azure Germany North) for extraction. Not personal data — supplier commercial documents only. |
 | **Purpose** | Extract structured T&C fields from unstructured documents using large language models |
 | **Legal basis** | **Not applicable** — no personal data is sent to external LLM APIs. Only supplier commercial document text is processed. |
 | **Retention period** | Not retained by pipeline — API call is stateless. Provider data retention governed by provider terms (see Section 5). |
-| **Third-party recipients** | OpenAI (via Azure Germany North); Anthropic (fallback, data residency under legal review) |
-| **Data location** | Germany (Azure Germany North for OpenAI); Anthropic location under review |
+| **Third-party recipients** | OpenAI (via Azure Germany North) |
+| **Data location** | Germany (Azure Germany North — contractually guaranteed) |
 | **Note** | Before any pipeline extension that would send personal data to an external LLM API, a new DPIA must be completed and appropriate safeguards established. |
 
 ---
@@ -158,15 +157,15 @@ API request logs
 
 ### Highest-risk processing activity: LLM extraction via external API (Activity 2.2)
 
-This activity is selected for DPIA because it involves sending document content to external third-party providers (OpenAI, Anthropic) outside the aggregator's direct control, creating the highest risk of unintended data exposure if personal data were inadvertently present in a supplier document.
+This activity is selected for DPIA because it involves sending document content to an external third-party provider (OpenAI via Azure Germany North) outside the aggregator's direct control, creating a residual risk of unintended data exposure if personal data were inadvertently present in a supplier document.
 
 ---
 
 ### 3.1 Description of the processing
 
-TermsIQ sends the text content of supplier T&C documents to external LLM APIs (OpenAI GPT-4o via Azure, Anthropic Claude as fallback) to extract structured field values. The documents are supplier commercial terms — they are not intended to contain personal data. However, there is a residual risk that supplier documents could inadvertently contain personal data (e.g. a named contact, a specific customer example cited in the terms).
+TermsIQ sends the text content of supplier T&C documents to the OpenAI GPT-4o API (via Azure Germany North) to extract structured field values. The documents are supplier commercial terms — they are not intended to contain personal data. However, there is a residual risk that supplier documents could inadvertently contain personal data (e.g. a named contact, a specific customer example cited in the terms).
 
-The LLM API call is stateless: the document text is sent, the structured extraction is returned, and no data is retained in the pipeline from that call beyond the extracted fields. However, the LLM provider may process and temporarily store the input text according to its own data processing terms.
+The LLM API call is stateless: the document text is sent, the structured extraction is returned, and no data is retained in the pipeline from that call beyond the extracted fields. However, OpenAI may temporarily process the input text according to its data processing terms — mitigated by using the zero-data-retention (ZDR) Azure OpenAI Enterprise API tier.
 
 **Scope:** Approximately 500–25,000 document ingestions at MVP to scale, plus ongoing updates (~50–2,500/month). All documents are supplier commercial terms. No customer or driver personal data is intentionally included.
 
@@ -187,9 +186,10 @@ The LLM API call is stateless: the document text is sent, the structured extract
 
 | Risk | Likelihood | Severity | Risk level |
 |---|---|---|---|
-| Personal data inadvertently present in a supplier document is sent to an external LLM provider | Very low (supplier T&C documents are not personal data by design) | Medium (data subject unaware; no consent) | **Low** |
-| LLM provider uses submitted document content for model training | Low (both OpenAI and Anthropic offer API terms that exclude training on API inputs by default) | High (if it occurred, personal data could be embedded in model weights) | **Low–Medium** |
-| Data routed outside Germany in violation of data residency requirement | Low (Azure Germany North contractually restricts processing to Germany; Anthropic under review) | High (regulatory violation; GDPR Art. 46 breach) | **Low–Medium** |
+| Personal data inadvertently present in a supplier document is sent to OpenAI API | Very low (supplier T&C documents are not personal data by design) | Medium (data subject unaware; no consent) | **Low** |
+| LLM provider uses submitted document content for model training | Very low (Azure OpenAI Enterprise API ZDR terms contractually exclude training on API inputs) | High (if it occurred, personal data could be embedded in model weights) | **Very Low** |
+| Data routed outside Germany in violation of data residency requirement | Low (Azure Germany North contractually restricts processing to Germany) | High (regulatory violation; GDPR Art. 46 breach) | **Low** |
+| Incorrect AI extraction displayed to end customer at booking (wrong payment rule, wrong licence rule, wrong grace period) | Medium (LLM hallucination is a known risk; confidence scoring and human review reduce but do not eliminate it) | High (customer acts on incorrect information, arrives at counter, booking refused — no recourse; potential regulatory complaint under EU consumer law) | **Medium** |
 | Unauthorised access to documents in transit | Very low (TLS in transit; API key authentication) | High | **Low** |
 
 ---
@@ -199,8 +199,9 @@ The LLM API call is stateless: the document text is sent, the structured extract
 | Risk | Mitigation |
 |---|---|
 | Inadvertent personal data in supplier document | Pre-processing step scans documents for personal data patterns (names, email addresses, ID numbers) before API submission. If detected, document is routed to human review before LLM processing. |
-| LLM provider training on inputs | Use API tiers with contractual zero-data-retention (ZDR) terms: OpenAI Enterprise API / Azure OpenAI (no training on inputs); Anthropic API (no training on API inputs by default). Confirm and document in vendor agreements. |
-| Data residency violation | Azure OpenAI Germany North used as primary — contractual Germany-region processing. Anthropic fallback: legal review of DPA required before enabling in production; if unresolvable, replace with EU-hosted open-weight model. |
+| LLM provider training on inputs | Azure OpenAI Enterprise API ZDR tier used — contractual zero-data-retention; inputs excluded from model training. Confirm ZDR is enabled on the Azure subscription before go-live and document in the vendor agreement. |
+| Data residency violation | Azure OpenAI Germany North — contractual Germany-region processing guaranteed. No other LLM provider in the pipeline. If Azure OpenAI experiences an outage, the nightly batch retries the following night — T&C documents do not change daily, so a one-night delay is operationally acceptable. |
+| Incorrect AI extraction displayed to end customer | Confidence threshold + mandatory human review gate — no extraction goes live in the API without validation.  fallback below minimum confidence threshold. Source, confidence score, and extracted_at date included in every API response. Nightly batch means errors are caught before reaching any customer. |
 | Data in transit | TLS 1.3 enforced for all API calls. API keys stored in secrets manager, never in code. |
 | Scope creep (future personal data inclusion) | Any pipeline extension that would introduce personal data (e.g. driver nationality for licence validation per booking) requires a new DPIA before development. Embedded in product governance policy. |
 
@@ -211,7 +212,7 @@ The LLM API call is stateless: the document text is sent, the structured extract
 | | |
 |---|---|
 | **Residual risk after mitigations** | **Low** |
-| **Rationale** | The core processing involves no personal data. The residual risks (inadvertent exposure, provider training) are mitigated by contractual controls and pre-processing. The data residency gap (Anthropic) is a known issue with a defined resolution path. |
+| **Rationale** | The core processing involves no personal data. The residual risks (inadvertent exposure in supplier documents; incorrect extraction displayed to end customer) are mitigated by contractual ZDR controls, pre-processing, and the human review gate. Single-provider architecture with Azure Germany North eliminates data residency uncertainty. |
 | **DPO sign-off required?** | Yes — before production go-live, the DPO should review this DPIA and confirm the residual risk rating |
 | **Review trigger** | Any pipeline change that introduces personal data; any change of LLM provider; annual review |
 
@@ -252,22 +253,7 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 
 ---
 
-### 5.2 Anthropic (Claude API — fallback)
-
-| Attribute | Detail |
-|---|---|
-| **Service** | Anthropic Claude Sonnet API |
-| **What data is sent** | Supplier T&C document text (not personal data in normal operation) |
-| **Purpose** | LLM-based T&C field extraction (fallback provider for low-confidence or primary-unavailable scenarios) |
-| **Legal transfer mechanism** | **Under review** — Anthropic's standard API does not currently offer a contractual EU/Germany data residency guarantee equivalent to Azure OpenAI. SCCs may be required for any processing routed to Anthropic's US-based infrastructure. |
-| **Data storage location** | Anthropic standard: USA. EU residency: not currently confirmed. |
-| **Provider training on inputs** | No — Anthropic API terms exclude training on API inputs by default |
-| **Retention by provider** | Per Anthropic terms: API inputs and outputs not retained for training; temporary processing retention applies |
-| **Action required** | **Legal review required before enabling Anthropic as production fallback.** Options: (a) obtain Anthropic DPA with EU SCCs and document transfer mechanism; (b) restrict Anthropic fallback to non-document-content tasks only; (c) replace Anthropic fallback with an EU-hosted open-weight model (e.g. Mistral Large via Mistral API, EU-hosted). Resolution required before go-live. |
-
----
-
-### 5.3 Cloud infrastructure provider (Germany region)
+### 5.2 Cloud infrastructure provider (Germany region)
 
 | Attribute | Detail |
 |---|---|
@@ -299,12 +285,10 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 | Privacy by design embedded in pipeline architecture | ✅ | Head of Engineering |
 | Data minimisation — only document text sent to LLM (no booking or customer data) | ✅ | Head of Engineering |
 | Germany-region data residency enforced for primary infrastructure | ✅ | Head of Engineering |
-| Anthropic fallback data residency resolved before go-live | ⚠️ Pending | Legal / DPO |
 | DPIA completed for highest-risk processing activity | ✅ This document | DPO |
 | DPO review and sign-off before go-live | ⚠️ Pending | DPO |
 | Data subject rights procedure documented | ✅ This document | DPO |
 | Vendor DPAs obtained (Azure) | ⚠️ In progress | Legal |
-| Vendor DPAs obtained (Anthropic) | ⚠️ Pending legal review | Legal |
 | Retention schedules implemented in system | ⚠️ To be built | Head of Engineering |
 | Personal data pre-scan before LLM submission | ⚠️ To be built | Head of Engineering |
 | Annual GDPR review scheduled | ⚠️ To be scheduled | DPO |
@@ -312,6 +296,6 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 ---
 
 *TermsIQ — GDPR Documentation*
-*Document version 1.0 — June 2026*
+*Document version 1.1 — June 2026*
 *Data Controller: [Aggregator legal entity name — to be completed]*
 *Data Protection Officer: [DPO name and contact — to be completed before go-live]*

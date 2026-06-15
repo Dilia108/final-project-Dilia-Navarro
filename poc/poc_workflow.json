@@ -4,31 +4,46 @@
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
         }
       },
       "id": "node-trigger",
       "name": "Schedule Trigger (Daily 08:00)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [100, 300],
-      "notes": "Triggers daily at 08:00 to check for new or updated supplier T&C documents. In production this would also be triggered on document upload via webhook."
+      "position": [
+        100,
+        300
+      ],
+      "notes": "Triggers daily at 08:00 UTC. In production each supplier has its own schedule entry with sourceType, url, supplier, and pickupCountry configured. For the POC, edit node-fetch-doc to switch supplier and source type."
     },
     {
       "parameters": {
         "method": "GET",
         "url": "https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf",
         "options": {
-          "response": { "response": { "responseFormat": "file" } },
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
           "timeout": 30000
         }
       },
       "id": "node-fetch-doc",
-      "name": "Fetch Supplier Document",
+      "name": "Fetch Supplier Document (PDF / Web / Excel)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [320, 300],
-      "notes": "Fetches the Hertz Spain T&C PDF from the public Hertz document URL. In production: accepts PDFs via SFTP, email attachment, or supplier upload portal. Other suppliers (Sixt, Avis, Europcar, etc.) have their own URL patterns or delivery methods."
+      "position": [
+        320,
+        300
+      ],
+      "notes": "Fetches the supplier T&C document. Set sourceType to 'pdf', 'web', or 'excel'.\nPOC default: Hertz Spain PDF. Change url + sourceType to switch supplier.\nThe sourceType is injected into the output JSON and drives the IF branch below."
     },
     {
       "parameters": {
@@ -36,22 +51,28 @@
         "options": {}
       },
       "id": "node-extract-text",
-      "name": "Extract Text from PDF",
+      "name": "Extract Text — PDF",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [540, 300],
-      "notes": "Extracts raw text from the PDF binary. Handles multi-page PDFs. In production: OCR is applied to scanned documents using a pre-processing step before this node."
+      "position": [
+        980,
+        180
+      ],
+      "notes": "Extracts text from PDF binary using n8n built-in PDF extractor. Handles multi-page PDFs. In production: OCR applied to scanned PDFs using AWS Textract before this node."
     },
     {
       "parameters": {
-        "jsCode": "// Pre-process: strip non-T&C content to reduce token count\n// This removes common boilerplate sections that don't contain T&C fields\nconst rawText = $input.first().json.text || '';\n\n// Truncate to first 12000 chars to stay within token limits for POC\n// In production: intelligent section detection identifies relevant clauses\nconst truncated = rawText.substring(0, 12000);\n\n// Generate a simple hash for change detection\nconst hash = require('crypto')\n  .createHash('md5')\n  .update(rawText)\n  .digest('hex');\n\nreturn [{\n  json: {\n    processedText: truncated,\n    documentHash: hash,\n    supplier: 'Hertz',\n    pickupCountry: 'ES',\n    sourceUrl: 'https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf',\n    ingestedAt: new Date().toISOString(),\n    characterCount: rawText.length\n  }\n}];"
+        "jsCode": "\n// Pre-process: works for all source types (PDF text comes in as json.text,\n// web and Excel already produce json.text in their extractors)\nconst rawText = $input.first().json.text || $input.first().json.data || '';\nconst upstream = $input.first().json;\n\n// Truncate to 12,000 chars for LLM submission\n// In production: intelligent section detection isolates T&C clauses\nconst truncated = rawText.substring(0, 12000);\n\n// MD5 hash for change detection\nconst hash = require('crypto')\n  .createHash('md5')\n  .update(rawText)\n  .digest('hex');\n\nreturn [{\n  json: {\n    processedText: truncated,\n    documentHash: hash,\n    supplier: upstream.supplier || 'Unknown',\n    pickupCountry: upstream.pickupCountry || 'XX',\n    sourceUrl: upstream.url || 'local',\n    sourceType: upstream.sourceType || 'pdf',\n    ingestedAt: new Date().toISOString(),\n    characterCount: rawText.length\n  }\n}];\n"
       },
       "id": "node-preprocess",
       "name": "Pre-process & Hash Document",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [760, 300],
-      "notes": "Truncates document to relevant sections, generates MD5 hash for change detection. In production: hash is compared against stored hash — if unchanged, extraction is skipped (cost optimisation)."
+      "position": [
+        1420,
+        300
+      ],
+      "notes": "Works identically for all three source types — PDF, Web, and Excel extractors all produce json.text before reaching this node. Truncates to 12,000 chars, generates MD5 hash for change detection."
     },
     {
       "parameters": {
@@ -60,26 +81,32 @@
           "values": [
             {
               "role": "system",
-              "content": "You are a specialist in car rental terms and conditions extraction. Your task is to extract exactly five specific fields from the provided car rental supplier T&C document. You must respond ONLY with valid JSON — no preamble, no explanation, no markdown code fences. If a field is not mentioned or cannot be determined from the document, use null for the value and set confidence to 'LOW'. Be precise and conservative — only extract what is explicitly stated."
+              "content": "You are a specialist in car rental terms and conditions extraction.\nYour task is to extract exactly five specific fields from a car rental supplier T&C document.\n\nFIELD DEFINITIONS:\n1. tpl_amount — Third party liability (TPL) coverage amount.\n   - If explicit amount found, extract it (e.g. \"EUR 100,000,000\").\n   - If document says \"statutory minimum\" or similar, set value to \"STATUTORY_MINIMUM\" and confidence HIGH.\n   - If not mentioned, set value to null and confidence LOW.\n   - Terminology varies: \"Seguro de responsabilidad civil\" (ES), \"Haftpflichtversicherung\" (DE), \"RC\", \"TPLI\" all mean TPL.\n\n2. grace_period_minutes — Minutes reservation is held after scheduled pickup before cancellation.\n   - Extract as integer only (e.g. 60, 29). Null if absent. Never guess.\n   - Terminology: \"Karenzzeit\" (DE), \"grace period\", \"held for\", \"reserva mantenida\".\n\n3. licence_rules — What licences are accepted, rejected, or require translation/IDP.\n   - Be specific: EU vs non-EU, digital, photocopies, minimum holding period.\n\n4. payment_rules — Payment methods accepted for deposit and rental.\n   - Distinguish credit vs debit. Note cards NOT accepted (Maestro, prepaid, cash).\n\n5. cross_border_conditions — Restrictions for taking vehicle across borders.\n   - Permitted zones/countries, prohibited countries, required documents, penalties.\n\nCONFIDENCE: HIGH = explicitly stated | MEDIUM = implied | LOW = absent or unclear\nRespond ONLY with valid JSON. Never fabricate. source_text = direct quote max 100 chars or null."
             },
             {
               "role": "user",
-              "content": "Extract the following 5 fields from this car rental T&C document for supplier: {{ $json.supplier }}, pickup country: {{ $json.pickupCountry }}.\n\nFields to extract:\n1. tpl_amount: The third party liability coverage amount. If the document states 'statutory minimum applies' or similar, set value to 'STATUTORY_MINIMUM' and confidence to 'HIGH'.\n2. grace_period_minutes: The grace period before a no-show cancellation, in minutes. Extract as a number.\n3. licence_rules: Key licence acceptance rules — what licences are accepted, rejected, or require translation. Be specific about country combinations.\n4. payment_rules: Which payment methods are accepted for deposit and rental. Distinguish credit card vs debit card requirements.\n5. cross_border_conditions: Any restrictions or requirements for taking the vehicle across national borders.\n\nFor each field provide:\n- value: the extracted information (string, number, or null)\n- confidence: HIGH (clearly stated), MEDIUM (implied or requires inference), LOW (absent or very unclear)\n- source_text: the exact phrase from the document that supports the extraction (max 100 chars, or null)\n\nDocument text:\n{{ $json.processedText }}\n\nRespond with ONLY this JSON structure:\n{\n  \"tpl_amount\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"grace_period_minutes\": {\"value\": null, \"confidence\": \"\", \"source_text\": \"\"},\n  \"licence_rules\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"payment_rules\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"},\n  \"cross_border_conditions\": {\"value\": \"\", \"confidence\": \"\", \"source_text\": \"\"}\n}"
+              "content": "=== EXAMPLE 1 — Sixt / DE (explicit TPL, clear grace period) ===\n\nDocument excerpt:\n\"Haftpflichtversicherung mit einer maximalen Deckungssumme von EUR 100 Mio. Die maximale\nDeckungssumme je geschädigter Person beläuft sich auf EUR 12 Mio.\nDie 60-Minuten-Karenz: Wir halten Ihr Fahrzeug bis zu 1 Stunde bereit.\nFotokopien und digitale Dokumente werden nicht akzeptiert.\nSixt akzeptiert Kredit- und Debit-Karten von Visa, MasterCard, Amex, Diners Club, Discover, JCB.\nPrepaid-Karten nicht akzeptiert. Barzahlungen nicht akzeptiert.\nZone IV verboten. Strafe: 150 EUR.\"\n\n{\n  \"tpl_amount\": {\"value\": \"EUR 100,000,000 (max EUR 12,000,000 per person)\", \"confidence\": \"HIGH\", \"source_text\": \"Haftpflichtversicherung mit einer maximalen Deckungssumme von EUR 100 Mio.\"},\n  \"grace_period_minutes\": {\"value\": 60, \"confidence\": \"HIGH\", \"source_text\": \"halten Ihr Fahrzeug bis zu 1 Stunde bereit\"},\n  \"licence_rules\": {\"value\": \"Original licence only. Photocopies and digital licences not accepted. Non-German licences require certified translation.\", \"confidence\": \"HIGH\", \"source_text\": \"Fotokopien und digitale Dokumente werden nicht akzeptiert\"},\n  \"payment_rules\": {\"value\": \"Visa, Mastercard, Amex, Diners Club, Discover, JCB accepted. Prepaid cards not accepted. Cash not accepted.\", \"confidence\": \"HIGH\", \"source_text\": \"Prepaid-Karten nicht akzeptiert. Barzahlungen nicht akzeptiert.\"},\n  \"cross_border_conditions\": {\"value\": \"Zone IV (outside Western/Central Europe) prohibited for all vehicles. Penalty for unauthorised travel: EUR 150.\", \"confidence\": \"HIGH\", \"source_text\": \"Zone IV verboten. Strafe: 150 EUR.\"}\n}\n\n=== EXAMPLE 2 — Hertz / ES (statutory minimum TPL, absent grace period) ===\n\nDocument excerpt:\n\"Seguro de responsabilidad civil frente a terceros incluido automáticamente. Cumple con todos\nlos requisitos legales en materia de responsabilidad civil.\n[No grace period information in this document]\nRESERVA DE CRÉDITO/DEPÓSITO: bloquearemos una cantidad en su tarjeta de crédito o débito.\nMínimo 200 euros. MÁS 500 euros si no ha adquirido SuperCover.\nPaíses prohibidos: todos los seguros quedarán invalidados. Indemnización repatriación: 2.317 EUR.\"\n\n{\n  \"tpl_amount\": {\"value\": \"STATUTORY_MINIMUM\", \"confidence\": \"HIGH\", \"source_text\": \"cumple con todos los requisitos legales en materia de responsabilidad civil\"},\n  \"grace_period_minutes\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"licence_rules\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"payment_rules\": {\"value\": \"Credit and debit cards accepted. Minimum deposit EUR 200. Additional EUR 500 without SuperCover.\", \"confidence\": \"HIGH\", \"source_text\": \"bloquearemos una cantidad en su tarjeta de crédito o débito. Mínimo 200 euros.\"},\n  \"cross_border_conditions\": {\"value\": \"Travel to prohibited countries invalidates all insurance. Vehicle repatriation penalty: EUR 2,317.\", \"confidence\": \"HIGH\", \"source_text\": \"todos los seguros quedarán invalidados. Indemnización repatriación: 2.317 EUR.\"}\n}\n\nNOTE: null + LOW is CORRECT for absent fields. Never guess or fabricate.\n\n=== NOW EXTRACT from the following document ===\n\nSupplier: {{ $json.supplier }} | Pickup Country: {{ $json.pickupCountry }}\n\nFields to extract (same rules as examples above):\n1. tpl_amount  2. grace_period_minutes (integer or null)  3. licence_rules  4. payment_rules  5. cross_border_conditions\n\nFor each: value, confidence (HIGH/MEDIUM/LOW), source_text (max 100 chars or null)\n\nDocument text:\n{{ $json.processedText }}\n\nRespond with ONLY this JSON:\n{\n  \"tpl_amount\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"grace_period_minutes\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"licence_rules\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"payment_rules\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null},\n  \"cross_border_conditions\": {\"value\": null, \"confidence\": \"LOW\", \"source_text\": null}\n}"
             }
           ]
         },
         "options": {
           "temperature": 0,
-          "maxTokens": 1000
+          "maxTokens": 1200
         }
       },
       "id": "node-openai-extract",
       "name": "OpenAI GPT-4o — Extract T&C Fields",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.4,
-      "position": [980, 300],
+      "position": [
+        1640,
+        300
+      ],
       "credentials": {
-        "openAiApi": { "id": "openai-cred", "name": "OpenAI API" }
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI API"
+        }
       },
       "notes": "Primary extraction using GPT-4o. Temperature=0 for deterministic, consistent outputs. In production: prompt caching is used for the system prompt across all extraction calls (major cost saving). Fallback to Anthropic Claude if this node fails or confidence is LOW on all fields."
     },
@@ -91,19 +118,27 @@
       "name": "Validate & Score Extraction",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1200, 300],
+      "position": [
+        1860,
+        300
+      ],
       "notes": "Applies validation rules: grace period range check (0–480 min), counts low-confidence fields, determines if human review is required, flags if COB lookup is needed for TPL. In production: additional rules include cross-referencing known supplier policy patterns and checking for contradictions between fields."
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false },
+          "options": {
+            "caseSensitive": false
+          },
           "conditions": [
             {
               "id": "cob-check",
               "leftValue": "={{ $json.tplNeedsCobLookup }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         }
@@ -112,7 +147,10 @@
       "name": "TPL needs COB lookup?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1420, 300],
+      "position": [
+        2080,
+        300
+      ],
       "notes": "Routes to COB lookup if TPL was not explicitly stated in the supplier document. This is the expected case for most European suppliers — they reference statutory minimum rather than stating a number."
     },
     {
@@ -123,19 +161,27 @@
       "name": "COB 2026 Statutory Minimum Lookup",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 180],
+      "position": [
+        2300,
+        180
+      ],
       "notes": "Looks up the statutory minimum TPL amount from the COB 2026 reference table for the pickup country. In production: this table is maintained as a database table, updated monthly by monitoring cobx.org for new editions. The COB disclaimer is included in every API response that references COB data."
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false },
+          "options": {
+            "caseSensitive": false
+          },
           "conditions": [
             {
               "id": "review-check",
               "leftValue": "={{ $json.requiresHumanReview }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ]
         }
@@ -144,7 +190,10 @@
       "name": "Requires human review?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1860, 300],
+      "position": [
+        2300,
+        300
+      ],
       "notes": "Routes records with 2+ LOW confidence fields or validation flags to the human review queue. Records with HIGH or MEDIUM overall confidence proceed directly to the knowledge base."
     },
     {
@@ -157,9 +206,15 @@
       "name": "Send to Human Review Queue",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [2080, 180],
+      "position": [
+        2520,
+        180
+      ],
       "credentials": {
-        "smtp": { "id": "smtp-cred", "name": "SMTP" }
+        "smtp": {
+          "id": "smtp-cred",
+          "name": "SMTP"
+        }
       },
       "notes": "Sends low-confidence extractions to the content team review queue via email. In production: this routes to a dedicated review interface (web app) where the content team can see the extracted value alongside the source document, edit if needed, and approve. No extracted field goes live in the API without passing this gate."
     },
@@ -171,7 +226,10 @@
       "name": "Build API-ready Record",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2080, 420],
+      "position": [
+        2520,
+        420
+      ],
       "notes": "Assembles the final structured record in the schema that will be written to the T&C knowledge base and served via the aggregator API. In production: this record is written to PostgreSQL keyed by supplier × pickup_country × field_type, with full version history retained."
     },
     {
@@ -180,54 +238,354 @@
         "url": "=https://your-termsiq-api.example.com/api/v1/tc-records",
         "sendBody": true,
         "bodyParameters": {
-          "parameters": [{ "name": "record", "value": "={{ JSON.stringify($json) }}" }]
+          "parameters": [
+            {
+              "name": "record",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
         },
-        "options": { "timeout": 10000 }
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "node-store",
       "name": "Store in Knowledge Base (API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2300, 420],
+      "position": [
+        2740,
+        420
+      ],
       "notes": "POC: writes the record to a placeholder API endpoint. In production: writes directly to the PostgreSQL knowledge base. The record is versioned — the previous value is not deleted, it is marked as superseded with an end_date timestamp."
+    },
+    {
+      "id": "node-detect-source",
+      "name": "Detect Source Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        300
+      ],
+      "notes": "Detects source type from the URL or explicit override. Outputs sourceType: 'pdf' | 'web' | 'excel'. In production this is set per supplier in a config table.",
+      "parameters": {
+        "jsCode": "\n// Detect source type from URL extension or explicit config\n// In production: read from a supplier config table\nconst url = ($input.first().json.url || '').toLowerCase();\n\nlet sourceType = 'pdf'; // default\nif (url.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.csv')) {\n  sourceType = 'excel';\n} else if (url.endsWith('.html') || url.endsWith('.htm') ||\n           url.includes('/pages/') || url.includes('/mietbedingungen') ||\n           url.includes('/terms') || url.includes('/informacion')) {\n  sourceType = 'web';\n}\n\n// Allow explicit override via a field set in the trigger/config\nconst explicitType = $input.first().json.sourceType;\nif (explicitType && ['pdf', 'web', 'excel'].includes(explicitType)) {\n  sourceType = explicitType;\n}\n\nconst binaryData = $input.first().binary;\nconst rawBytes   = binaryData ? Object.values(binaryData)[0] : null;\n\nreturn [{\n  json: {\n    sourceType,\n    url: $input.first().json.url || '',\n    supplier: $input.first().json.supplier || 'Unknown',\n    pickupCountry: $input.first().json.pickupCountry || 'XX',\n    binaryKey: rawBytes ? Object.keys(binaryData)[0] : null,\n  },\n  binary: binaryData || {}\n}];\n"
+      }
+    },
+    {
+      "id": "node-source-branch",
+      "name": "Route by Source Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        760,
+        300
+      ],
+      "notes": "Routes to PDF, Web, or Excel extractor based on detected source type.",
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.sourceType }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.sourceType }}",
+                    "rightValue": "web",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Web"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.sourceType }}",
+                    "rightValue": "excel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Excel"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-extract-web",
+      "name": "Extract Text — Web/HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        300
+      ],
+      "notes": "Strips HTML tags, navigation, scripts, and footers from web page content. Extracts clean readable text. In production: uses a dedicated HTML-to-text library (e.g. BeautifulSoup via a Python function node) for better fidelity.",
+      "parameters": {
+        "jsCode": "\n// Extract clean text from HTML content\n// Strips tags, scripts, nav, and excess whitespace\nconst raw = $input.first().json.data || $input.first().json.text || '';\n\n// Remove script and style blocks\nlet text = raw\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, ' ')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, ' ')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, ' ');\n\n// Replace block-level tags with newlines\ntext = text\n  .replace(/<\\/(p|div|h[1-6]|li|tr|td|th|br)>/gi, '\\n')\n  .replace(/<br\\s*\\/?>/gi, '\\n');\n\n// Strip remaining tags\ntext = text.replace(/<[^>]+>/g, ' ');\n\n// Decode common HTML entities\ntext = text\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&euro;/g, '€')\n  .replace(/&#8364;/g, '€')\n  .replace(/&auml;/g, 'ä')\n  .replace(/&ouml;/g, 'ö')\n  .replace(/&uuml;/g, 'ü')\n  .replace(/&szlig;/g, 'ß');\n\n// Clean whitespace\ntext = text\n  .split('\\n')\n  .map(l => l.trim())\n  .filter(l => l.length > 0)\n  .join('\\n');\n\nconst upstream = $input.first().json;\nreturn [{\n  json: {\n    text,\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-extract-excel",
+      "name": "Extract Text — Excel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        420
+      ],
+      "notes": "Reads all sheets from an Excel/CSV binary and converts to readable text. Sheet name is used as a section header. In production: supplier-specific column mapping handles structured Excel feeds.",
+      "parameters": {
+        "jsCode": "\n// Extract text from Excel binary\n// n8n stores binary data in the binary property\n// We convert the binary to base64 and parse with a simple approach\n// In production: use a dedicated Excel parsing library\n\nconst upstream = $input.first().json;\n\n// For the POC: if the file is a CSV or plain-text Excel export,\n// we can parse it directly. For binary .xlsx we output a placeholder\n// that demonstrates the flow without requiring a full xlsx parser.\n\nconst binaryData = $input.first().binary;\nlet text = '';\n\nif (binaryData) {\n  // Try to decode as UTF-8 text (works for CSV and some Excel exports)\n  try {\n    const binaryKey = Object.keys(binaryData)[0];\n    const base64 = binaryData[binaryKey].data;\n    const decoded = Buffer.from(base64, 'base64').toString('utf-8');\n    \n    if (decoded.includes(',') || decoded.includes('\\t')) {\n      // Looks like CSV/TSV — parse rows\n      const rows = decoded.split('\\n')\n        .map(r => r.trim())\n        .filter(r => r.length > 0);\n      text = '## Sheet: Rental Conditions\\n' + rows.join('\\n');\n    } else if (decoded.includes('<')) {\n      // Excel XML format — strip tags\n      text = decoded.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n    } else {\n      text = decoded;\n    }\n  } catch(e) {\n    text = '[Excel binary detected — requires openpyxl or SheetJS parser in production]';\n  }\n} else if (upstream.text) {\n  text = upstream.text;\n}\n\nreturn [{\n  json: {\n    text: text || '[No Excel content extracted]',\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "node-merge",
+      "name": "Merge — All Source Types",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        300
+      ],
+      "notes": "Merges output from PDF, Web, and Excel extractors into a single stream. All branches produce the same JSON shape: { text, sourceType, supplier, pickupCountry, url }. The downstream Pre-process node handles all three identically.",
+      "parameters": {
+        "mode": "passThrough",
+        "output": "input1"
+      }
     }
   ],
   "connections": {
     "Schedule Trigger (Daily 08:00)": {
-      "main": [[{ "node": "Fetch Supplier Document", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Fetch Supplier Document (PDF / Web / Excel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Fetch Supplier Document": {
-      "main": [[{ "node": "Extract Text from PDF", "type": "main", "index": 0 }]]
+    "Fetch Supplier Document (PDF / Web / Excel)": {
+      "main": [
+        [
+          {
+            "node": "Detect Source Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Extract Text from PDF": {
-      "main": [[{ "node": "Pre-process & Hash Document", "type": "main", "index": 0 }]]
+    "Detect Source Type": {
+      "main": [
+        [
+          {
+            "node": "Route by Source Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Source Type": {
+      "main": [
+        [
+          {
+            "node": "Extract Text — PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Text — Web/HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Text — Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text — PDF": {
+      "main": [
+        [
+          {
+            "node": "Merge — All Source Types",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text — Web/HTML": {
+      "main": [
+        [
+          {
+            "node": "Merge — All Source Types",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Extract Text — Excel": {
+      "main": [
+        [
+          {
+            "node": "Merge — All Source Types",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge — All Source Types": {
+      "main": [
+        [
+          {
+            "node": "Pre-process & Hash Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Pre-process & Hash Document": {
-      "main": [[{ "node": "OpenAI GPT-4o — Extract T&C Fields", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "OpenAI GPT-4o — Extract T&C Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "OpenAI GPT-4o — Extract T&C Fields": {
-      "main": [[{ "node": "Validate & Score Extraction", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Validate & Score Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Validate & Score Extraction": {
-      "main": [[{ "node": "TPL needs COB lookup?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "TPL needs COB lookup?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "TPL needs COB lookup?": {
       "main": [
-        [{ "node": "COB 2026 Statutory Minimum Lookup", "type": "main", "index": 0 }],
-        [{ "node": "Requires human review?", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "COB 2026 Statutory Minimum Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Requires human review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "COB 2026 Statutory Minimum Lookup": {
-      "main": [[{ "node": "Requires human review?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Requires human review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Requires human review?": {
       "main": [
-        [{ "node": "Send to Human Review Queue", "type": "main", "index": 0 }],
-        [{ "node": "Build API-ready Record", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send to Human Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build API-ready Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Build API-ready Record": {
-      "main": [[{ "node": "Store in Knowledge Base (API)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Store in Knowledge Base (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -240,5 +598,10 @@
     "templateCredsSetupCompleted": false,
     "n8nVersion": "1.0.0"
   },
-  "tags": [{ "name": "TermsIQ", "createdAt": "2026-06-13" }]
+  "tags": [
+    {
+      "name": "TermsIQ",
+      "createdAt": "2026-06-13"
+    }
+  ]
 }

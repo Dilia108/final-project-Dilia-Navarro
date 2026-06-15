@@ -1,6 +1,6 @@
 # TermsIQ — Use Case Definition
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
-Version 2.3 — June 2026
+Version 2.4 — June 2026
 
 ---
 
@@ -23,11 +23,9 @@ The aggregator sits at the centre of this problem. It receives unstructured T&C 
 
 The value operates at three levels. First, it reduces the most expensive customer service contacts in the distribution chain — T&C-related disputes (wrong payment card, cancelled booking at counter, unaccepted licence) produce the longest calls, the highest escalation rate, and the most likely churn. Second, it reduces legal and regulatory exposure — the aggregator's liability under EU consumer law is real and active, even if it has not yet materialised as a fine. Third, it creates a commercial differentiator — an aggregator that serves structured, verified, COB-validated T&C data in real time has a genuine and currently unmatched argument with OTA partners.
 
-**Future modelling AI opportunity — two tracks:**
+**Future modelling AI opportunity:**
 
-**Track A — Fine-tuning for terminology normalisation (v2, achievable in weeks):** The 10 suppliers across 15 countries produce approximately 150 T&C documents covering the 5 critical fields — 750 labelled field extractions in total. These documents are publicly available now. With one content team member annotating at 15–30 minutes per document, the full dataset can be built in 2–4 weeks, running in parallel with the v1 build. This dataset is used to fine-tune a smaller, faster model (e.g. GPT-4o-mini or a German-hosted open-weight model) that learns supplier-specific terminology patterns — recognising that Goldcar calls TPL "RC", that Sixt Germany buries the grace period in a cancellation footnote, that "non-cancellation window" and "vehicle hold time" are the same concept. The fine-tuned model runs faster, costs less per extraction, and achieves higher accuracy than a general-purpose LLM on this specific task. Target: ready at v2 launch.
-
-**Track B — Complaint prediction model (v3, requires live data):** A predictive layer identifying which T&C gaps are most likely to generate complaints requires a closed data loop — booking ID, T&C served at time of booking, complaint outcome. This data does not currently exist in one place. TermsIQ creates it from go-live by logging which T&C was served for every booking. If OTA partnerships make complaint outcome data available, the loop closes and a complaint-risk scoring model becomes possible. Target: v3, 12–18 months post go-live.
+**Complaint prediction model (v2, requires live data):** A predictive layer identifying which T&C gaps are most likely to generate complaints requires a closed data loop — booking ID, T&C served at time of booking, complaint outcome. This data does not currently exist in one place. TermsIQ creates it from go-live by logging which T&C was served for every booking. If OTA partnerships make complaint outcome data available, the loop closes and a complaint-risk scoring model becomes possible. Target: v2, 12–18 months post go-live.
 
 ---
 
@@ -59,11 +57,9 @@ TermsIQ is an AI-powered document intelligence pipeline that automatically extra
 | Dimension | Detail |
 |---|---|
 | **Primary AI type — v1** | Generative AI / Large Language Model (extraction and structured output generation) |
-| **Primary AI type — v2** | Supervised Machine Learning / Fine-tuned model (domain-specific terminology normalisation) |
-| **Primary AI type — v3** | Predictive Modelling (complaint risk scoring per booking — requires closed data loop) |
+| **Primary AI type — v2** | Predictive Modelling (complaint risk scoring per booking — requires closed data loop) |
 | **Secondary functions** | Classification (confidence scoring, document change detection), Automation (pipeline orchestration, monitoring) |
 | **Model architecture — v1** | Dual-provider: OpenAI GPT-4o (primary) + Anthropic Claude Sonnet (fallback) — see routing logic below |
-| **Model architecture — v2** | Fine-tuned smaller model (GPT-4o-mini or EU-hosted open-weight) replacing GPT-4o for standard extractions; GPT-4o retained for edge cases |
 | **Infrastructure** | All infrastructure hosted in Germany to meet data residency requirements |
 
 ### AI maturity roadmap
@@ -72,13 +68,10 @@ TermsIQ is designed as a three-phase AI system. Each phase builds directly on th
 
 | Phase | Version | When | What | Why |
 |---|---|---|---|---|
-| **Prompt engineering** | v1 | Now | General-purpose GPT-4o with few-shot examples per supplier embedded in the prompt | Available immediately; no training data required; few-shot examples handle known terminology variants |
-| **Fine-tuning** | v2 | Weeks 1–4 (parallel to v1 build) | Annotate 150 documents (10 suppliers × 15 countries); fine-tune a smaller model on 750 labelled field extractions | Documents are publicly available now; annotation takes 2–4 weeks at 15–30 min/document; fine-tuned model is faster, cheaper, and more accurate on domain-specific terminology |
-| **Complaint prediction** | v3 | 12–18 months post go-live | Train a complaint-risk scoring model on booking ID → T&C served → complaint outcome data | Requires live data accumulation; TermsIQ generates this dataset from day one by logging T&C served per booking |
+| **Prompt engineering** | v1 | Now | General-purpose GPT-4o with per-supplier few-shot examples embedded in the prompt; prompts continuously refined based on human review corrections | Available immediately; no training data required; few-shot examples handle known terminology variants; human corrections feed directly back into prompt improvement |
+| **Complaint prediction** | v2 | 12–18 months post go-live | Train a complaint-risk scoring model on booking ID → T&C served → complaint outcome data | Requires live data accumulation; TermsIQ generates this dataset from day one by logging T&C served per booking |
 
-**Why fine-tuning is justified for this domain:** car rental T&C terminology varies significantly by supplier, country, and language. Goldcar calls TPL "RC" (Responsabilidad Civil). Sixt Germany embeds the grace period in a cancellation footnote with no heading. Avis splits payment rules across two separate documents with country-specific overrides. A general LLM handles these with few-shot prompting but not reliably at scale. A fine-tuned model trained on the annotated corpus learns these patterns as weighted parameters — it knows where to look and what to call it, supplier by supplier.
-
-**The human review queue generates training data for free:** every correction made by the content team in the human review interface is a labelled training example — original document text, what the LLM extracted, what the human corrected it to. By the time v2 fine-tuning runs, the live system will have generated additional labelled examples on top of the pre-built corpus, improving model quality further.
+**Why prompt engineering with few-shot examples is the right approach for v1:** the annotation work already done (Hertz ES/DE, Sixt ES/DE, Goldcar ES across all five fields) provides exactly the few-shot examples needed. Each annotated source text + extracted value pair is embedded directly in the prompt, teaching the model the supplier-specific terminology patterns without any training infrastructure. This is faster to build, easier to update, and produces results that are measurable against the ground truth immediately.
 
 ### Model routing logic
 
@@ -240,7 +233,7 @@ TermsIQ v1 explicitly will **not** do the following:
 | **Customer-facing display of T&C** | A different product with a different buyer. TermsIQ is an aggregator-layer API product — it does not interact directly with end consumers or OTA booking interfaces. |
 | **Legal interpretation of extracted T&C content** | TermsIQ extracts and structures factual content. It does not provide legal advice, assess regulatory compliance on behalf of clients, or interpret ambiguous legal language. Human review and legal sign-off remain required for edge cases. |
 | **Supplier contract negotiation or T&C modification** | TermsIQ reads and extracts what suppliers publish. It does not negotiate, amend, or influence supplier T&C content. |
-| **Custom training or fine-tuning of AI models** | TermsIQ uses OpenAI and Anthropic APIs via prompt engineering and structured output schemas. No custom model training is in scope for v1. |
+| **Custom training or fine-tuning of AI models** | TermsIQ v1 uses OpenAI and Anthropic APIs via prompt engineering and per-supplier few-shot examples. No custom model training is in scope for v1. The annotation work already completed (Hertz, Sixt, Goldcar across ES and DE) serves directly as few-shot examples embedded in the extraction prompt — not as fine-tuning training data. |
 | **Real-time webhook alerts to OTA partners** | Push notifications to OTA partners when T&C changes would require OTA API integration. Deferred to v2. |
 | **Supplier self-service upload portal** | A web interface for suppliers to upload their own T&C documents directly. Deferred to v2. |
 | **Processing of personal data** | TermsIQ processes only supplier commercial documents — not customer or driver personal data. Any pipeline extension that would process personal data requires a separate GDPR assessment before build. |
@@ -250,5 +243,5 @@ TermsIQ v1 explicitly will **not** do the following:
 ---
 
 *TermsIQ — Use Case Definition*
-*Document version 2.3 — June 2026*
-*Incorporates: German data residency, operational market scope, cross-border conditions, full structured use case framework, named supplier list (10 suppliers), COB 2026 TPL cross-check, English/German output language, dual-provider LLM architecture, fuel policy clarification (SIPP code), ECRCS 2025 field validation, three-phase AI maturity roadmap (prompt engineering → fine-tuning → complaint prediction), multi-document architecture note, terminology normalisation requirement*
+*Document version 2.4 — June 2026*
+*Incorporates: German data residency, operational market scope, cross-border conditions, full structured use case framework, named supplier list (10 suppliers), COB 2026 TPL cross-check, English/German output language, dual-provider LLM architecture, fuel policy clarification (SIPP code), ECRCS 2025 field validation, two-phase AI maturity roadmap (prompt engineering → complaint prediction), multi-document architecture note, terminology normalisation via few-shot examples (not fine-tuning)*

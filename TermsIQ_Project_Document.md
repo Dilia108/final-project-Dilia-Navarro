@@ -26,9 +26,9 @@ When the customer arrives at the rental counter and the actual terms differ from
 
 ---
 
-### 1.2 The four critical T&C fields
+### 1.2 The five critical T&C fields
 
-These are the fields that cause the most real-world friction at the rental counter and the most complaints in the distribution chain. They are the minimum viable scope for TermsIQ v1.
+These are the fields that cause the most real-world friction at the rental counter and the most complaints in the distribution chain. Four of them — TPL, grace period, licence type, and payment — are the core v1 scope. Cross-border conditions are included as a v1 bonus field: the annotation work and pipeline already support it, and it addresses a documented source of counter disputes. It is presented separately in the API response to reflect its higher complexity and the fact that confidence scores are more variable across suppliers.
 
 #### Third party liability (TPL) amount
 
@@ -41,6 +41,10 @@ Almost entirely absent from aggregator API responses. Supplier policies range fr
 #### Licence type accepted
 
 Three intersecting dimensions make this exceptionally complex: the customer's licence-issuing country, the pickup country, and the supplier's own policy. Hertz structures their T&C into global rental terms and country-specific terms — with country-specific terms explicitly taking precedence. Sixt Germany states explicitly that photocopies and digital licences will not be accepted, and that foreign licences not in German require a certified translation unless an EU/EEA exemption applies. An Australian licence in Spain is accepted by some suppliers and rejected by others. No aggregator API currently handles all three dimensions dynamically.
+
+#### Cross-border conditions (v1 bonus field)
+
+Cross-border rules vary significantly by supplier, vehicle category, and pickup country, and violations invalidate all insurance coverage. Sixt uses a four-zone system covering 25+ European countries with category-specific restrictions. Goldcar limits permitted countries to just five (Andorra, France, Italy, Portugal, Gibraltar) plus specific island rules — enforced via GPS tracking. Hertz uses a map-based system with country-specific forbidden lists. This field is more complex than the core four — permitted country lists are long, and confidence scores are more variable — which is why it is presented as a v1 bonus field rather than a core claim. The pipeline already extracts it from the same document in the same API call.
 
 #### Payment type accepted
 
@@ -69,7 +73,7 @@ TermsIQ is an AI-powered document intelligence pipeline that automatically extra
 
 **Stage 1 — Ingest:** Accept any document format from any supplier source. PDFs uploaded directly, Excel files via SFTP drop, web pages via scheduled crawl. OCR applied to scanned documents.
 
-**Stage 2 — Extract:** A large language model (Claude Sonnet via the Anthropic API) reads each document and extracts the four critical fields — TPL amount, grace period, licence acceptance rules, and payment acceptance rules — per country where those rules apply. Output is structured JSON conforming to a defined schema.
+**Stage 2 — Extract:** A large language model (Claude Sonnet via the Anthropic API) reads each document and extracts five T&C fields — TPL amount, grace period, licence acceptance rules, payment acceptance rules, and cross-border conditions — per country where those rules apply. Output is structured JSON conforming to a defined schema. The four core fields (TPL, grace period, licence, payment) are the primary v1 deliverable; cross-border conditions are extracted in the same call and served as a bonus field with its own confidence score.
 
 **Stage 3 — Validate:** Extracted data is checked against a validation schema. Values outside expected ranges (e.g. a TPL of €0 or a grace period of 500 minutes) trigger a human review flag. Confidence scores are attached to each extracted field.
 
@@ -110,7 +114,7 @@ Reviews liability implications of serving AI-extracted T&C data. If TermsIQ extr
 
 | Metric | Target |
 |---|---|
-| T&C field coverage | 4 critical fields extracted and served via API for ≥90% of active supplier/country combinations within 90 days |
+| T&C field coverage | 4 core fields extracted and served via API for ≥90% of active supplier/country combinations within 90 days; cross-border conditions served as bonus field for ≥75% of combinations |
 | Extraction accuracy | ≥95% accuracy on the four critical fields, validated against manually verified ground truth |
 | Change detection speed | Supplier T&C updates reflected in the knowledge base within 24 hours of document change |
 | Content team time saving | ≥60% reduction in manual T&C maintenance hours per month |
@@ -149,7 +153,8 @@ Reviews liability implications of serving AI-extracted T&C data. If TermsIQ extr
 | Version history and audit trail | Should have | Compliance requirement — the aggregator must be able to show what T&C was served at any point in time for any booking. |
 | API field extension (serve via existing response) | Should have | The distribution mechanism. Can be served as supplementary fields without breaking existing API contracts. |
 | Supplier self-service portal | Could have | A web interface where supplier account managers can upload new T&C documents directly. Reduces dependency on content team as intermediary. |
-| Additional T&C fields (fuel policy, cross-border rules, excess amounts) | Could have | High value but out of scope for v1. The four critical fields are the minimum viable product. |
+| Cross-border conditions | Should have | Extracted in the same pipeline call as the four core fields — no additional effort. Higher confidence variability than core fields (supplier zone systems are complex) makes it a v1 bonus field rather than a core claim, but the annotation work is already done and the extraction is live. |
+| Additional T&C fields (fuel policy, excess amounts) | Could have | High value but out of scope for v1. The five fields are the minimum viable product. |
 | Real-time webhook alerts to OTA partners | Could have | Push notifications to OTA partners when a supplier's T&C changes. Valuable but requires OTA API integration work. |
 | Automatic T&C display on booking confirmation | Won't have | Customer-facing feature — a different product with a different buyer. Out of scope for the aggregator API layer. |
 
@@ -161,7 +166,7 @@ Reviews liability implications of serving AI-extracted T&C data. If TermsIQ extr
 
 | Feature | Reach | Impact | Confidence | Effort | RICE Score | Verdict |
 |---|---|---|---|---|---|---|
-| LLM extraction of 4 critical fields | 500 supplier/country combinations | 3.0 (massive — direct compliance and legal risk reduction) | 0.85 | 2 person-months | **637,500** | Build first |
+| LLM extraction of 5 T&C fields | 500 supplier/country combinations | 3.0 (massive — direct compliance and legal risk reduction) | 0.85 | 2 person-months | **637,500** | Build first |
 | Change detection and alerting | 500 supplier/country combinations | 2.0 (high — accuracy degrades over time without this) | 0.80 | 1 person-month | **800,000** | Build second |
 
 **Analysis:** Change detection scores higher than the core extraction on a pure RICE basis because the effort is lower and the confidence is high — it is a well-understood engineering problem. However, it has a hard dependency on the extraction being live first. The correct build order is extraction → change detection, even though the RICE score inverts them. This is an important observation: RICE scores features in isolation, not in dependency order. Always cross-check with the dependency map.
@@ -437,8 +442,15 @@ This means the demo for Thursday is built from **real supplier documents** — n
     "grace_period_note": "Not specified in document — human review required",
     "grace_period_confidence": 0.20,
     "tpl_amount_eur": null,
-    "tpl_note": "Refers to statutory German minimum — country-specific supplement required",
-    "tpl_confidence": 0.45
+    "tpl_note": "Refers to statutory German minimum — COB lookup: €7,500,000 personal injury / €1,300,000 property damage",
+    "tpl_confidence": 0.95,
+    "cross_border_conditions": {
+      "zone_1_permitted": ["Andorra","Austria","Belgium","Denmark","Finland","France","Germany","Gibraltar","Great Britain","Ireland","Italy","Liechtenstein","Luxembourg","Monaco","Netherlands","Norway","Portugal","San Marino","Sweden","Switzerland","Spain","Vatican"],
+      "zone_2_permitted_standard_vehicles": ["Croatia","Czech Republic","Poland","Slovakia","Slovenia"],
+      "zone_3_permitted_economy_only": ["Estonia","Hungary","Latvia","Lithuania"],
+      "zone_4_prohibited": true,
+      "confidence": 0.88
+    }
   }
 }
 ```
@@ -449,9 +461,9 @@ This output does three things at once in the demo: it shows what the AI successf
 
 TermsIQ is not a traditional ML model trained on labelled examples. It uses a large language model (LLM) with a structured extraction prompt. The "training" is the prompt engineering — defining the schema, providing few-shot examples of correct extractions, and specifying how to handle ambiguity.
 
-The validation dataset — which your instructor will ask about — is a set of manually verified ground truth extractions: for 20–30 supplier/country combinations, a human expert reads the source document and records the correct value for each of the four critical fields. The AI's extractions are compared against this ground truth to calculate accuracy. This is the evaluation methodology, not a training dataset in the traditional sense.
+The validation dataset — which your instructor will ask about — is a set of manually verified ground truth extractions: for 20–30 supplier/country combinations, a human expert reads the source document and records the correct value for each of the five fields. The AI's extractions are compared against this ground truth to calculate accuracy. This is the evaluation methodology, not a training dataset in the traditional sense.
 
-**For the prototype:** download 6 T&C documents (2 suppliers × 3 countries). Manually extract the four fields from each. Run TermsIQ against the same documents. Compare. Calculate accuracy. That is your validation evidence for Thursday.
+**For the prototype:** download 6 T&C documents (2 suppliers × 3 countries). Manually extract the five fields from each. Run TermsIQ against the same documents. Compare. Calculate accuracy. That is your validation evidence for Thursday.
 
 ### 5.4 Technology stack — all free for the demo
 
@@ -481,7 +493,7 @@ The validation dataset — which your instructor will ask about — is a set of 
 
 ## Appendix A — Extraction schema (v1)
 
-The four critical fields extracted per supplier × pickup country combination.
+The five T&C fields extracted per supplier × pickup country combination. The four core fields (TPL, grace period, licence, payment) are the primary v1 deliverable. Cross-border conditions are extracted in the same API call and served as a bonus field.
 
 ```json
 {
@@ -521,6 +533,15 @@ The four critical fields extracted per supplier × pickup country combination.
       "debit_card_accepted": "string (yes / prepaid_only / no)",
       "digital_wallet_accepted": "boolean or null",
       "card_valid_days_after_return_required": "integer or null",
+      "notes": "string or null",
+      "confidence": "float (0.0–1.0)"
+    },
+    "cross_border_conditions": {
+      "permitted_countries": "array of ISO country codes or null",
+      "prohibited_countries": "array of ISO country codes or null",
+      "authorisation_required": "boolean",
+      "vehicle_category_restrictions": "string or null",
+      "penalty_eur": "number or null",
       "notes": "string or null",
       "confidence": "float (0.0–1.0)"
     }
