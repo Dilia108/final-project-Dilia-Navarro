@@ -160,7 +160,9 @@ Source documents are ingested and processed in any language (German, Spanish, It
 ### The five critical T&C fields (Minimum Viable Scope)
 
 #### 1. Third Party Liability (TPL) amount
-TPL varies by country law, by supplier, and sometimes by vehicle category. Most supplier T&C documents reference "statutory minimum" rather than stating a number — because the law determines it. TermsIQ resolves this through a three-layer logic:
+TPL varies by country law, by supplier, and sometimes by vehicle category. EU member states each have different statutory minimum TPL amounts — Spain's minimum (€70,000,000 personal injury) is nearly eleven times the EU MID floor of €6.45M. Most supplier T&C documents reference "statutory minimum" rather than stating a number — because the law determines it, not the supplier. This is legally correct but operationally insufficient for the distribution chain.
+
+When the customer's displayed coverage differs from the actual policy at pickup, the OTA that showed the incorrect figure faces potential consumer law liability under EU Directive 93/13/EEC on Unfair Contract Terms. TermsIQ resolves this through a three-layer logic:
 1. Extract if the supplier states an explicit amount.
 2. If the supplier references statutory minimum, query the Council of Bureaux (COB) reference database for the pickup country statutory amount.
 3. If no COB data is available, return a flagged "requires verification" response with the COB source link.
@@ -168,16 +170,16 @@ TPL varies by country law, by supplier, and sometimes by vehicle category. Most 
 This turns a data absence into an intelligent resolution — which is exactly what AI adds that a rule-based system cannot.
 
 #### 2. Grace period for vehicle pickup
-Almost entirely absent from aggregator API responses. Supplier policies range from 29 minutes to 2+ hours, with some suppliers auto-cancelling with no refund at the scheduled time. Currently managed by outdated content team notes and supplier phone calls. No systematic, reliable, real-time source exists in the distribution chain.
+Almost entirely absent from aggregator API responses. Supplier policies range from 29 minutes to 2+ hours (Goldcar holds bookings for 6 hours), with some suppliers auto-cancelling with no refund at the scheduled time. For airport pickups involving delayed flights, this is the most operationally urgent piece of information a customer needs. Currently managed by outdated content team notes and supplier phone calls. No systematic, reliable, real-time source exists anywhere in the distribution chain.
 
 #### 3. Licence type accepted
-Three intersecting dimensions make this complex: the customer's licence-issuing country, the pickup country, and the supplier's own policy. Sixt Germany explicitly states that photocopies and digital licences will not be accepted. Foreign licences not in German require certified translation unless an EU/EEA exemption applies. Source countries of primary concern: **Germany, Switzerland, Spain**.
+Three intersecting dimensions make this complex: the customer's licence-issuing country, the pickup country, and the supplier's own policy. Hertz structures their T&C into global rental terms and country-specific terms — with country-specific terms explicitly taking precedence. Sixt Germany explicitly states that photocopies and digital licences will not be accepted, and that foreign licences not in German require a certified translation unless an EU/EEA exemption applies. An Australian licence in Spain is accepted by some suppliers and rejected by others. No aggregator API currently handles all three dimensions dynamically. Source countries of primary concern: **Germany, Switzerland, Spain**.
 
 #### 4. Payment type accepted
-Credit card vs debit card is the single biggest source of counter disputes in car rental globally. Most major suppliers require a credit card for the security deposit — but exceptions exist per supplier, per rate type, and per pickup country.
+Credit card versus debit card is the single biggest source of counter disputes in car rental globally. Most major suppliers require a credit card for the security deposit — but exceptions exist per supplier, per rate type (prepaid vs pay-at-counter), and per pickup country. A customer who arrives at the counter with a debit card for a prepaid reservation, believing their payment was already settled, may find their booking refused with no recourse. This scenario is almost never accurately represented in the aggregator API. Goldcar, for example, accepts only Visa and Mastercard — a significantly narrower acceptance policy than Sixt or Hertz, which is not surfaced anywhere in the current distribution chain.
 
 #### 5. Cross-border conditions *(newly added)*
-Many suppliers impose specific restrictions or requirements when the rented vehicle is taken across national borders — for example: permitted countries, required documents (Green Card, cross-border authorisation letter), additional insurance requirements, or full prohibition of cross-border use. These conditions vary significantly by supplier and pickup country. Currently completely absent from most aggregator API responses. This field is critical for markets where cross-border rental is common, including Germany, Switzerland, and Spain.
+Many suppliers impose specific restrictions or requirements when the rented vehicle is taken across national borders. These conditions vary significantly by supplier and pickup country — and violations invalidate all insurance coverage. Sixt uses a four-zone system covering 25+ European countries with category-specific restrictions. Goldcar limits permitted countries to just five (Andorra, France, Italy, Portugal, Gibraltar) plus specific island rules — enforced via GPS tracking with automatic contract termination on violation. Hertz uses a map-based system with country-specific forbidden lists. Currently completely absent from most aggregator API responses. This field is critical for markets where cross-border rental is common, including Germany, Switzerland, and Spain.
 
 ### Operational markets
 
@@ -243,5 +245,5 @@ TermsIQ v1 explicitly will **not** do the following:
 ---
 
 *TermsIQ — Use Case Definition*
-*Document version 2.4 — June 2026*
-*Incorporates: German data residency, operational market scope, cross-border conditions, full structured use case framework, named supplier list (10 suppliers), COB 2026 TPL cross-check, English/German output language, dual-provider LLM architecture, fuel policy clarification (SIPP code), ECRCS 2025 field validation, two-phase AI maturity roadmap (prompt engineering → complaint prediction), multi-document architecture note, terminology normalisation via few-shot examples (not fine-tuning)*
+*Document version 2.5 — June 2026*
+*Incorporates: German data residency, operational market scope, cross-border conditions, full structured use case framework, named supplier list (10 suppliers), COB 2026 TPL cross-check, English/German output language, dual-provider LLM architecture, fuel policy clarification (SIPP code), ECRCS 2025 field validation, two-phase AI maturity roadmap (prompt engineering → complaint prediction), multi-document architecture note, terminology normalisation via few-shot examples (not fine-tuning), field descriptions strengthened with supplier-specific evidence from live POC testing (Hertz ES/DE, Sixt ES, Goldcar ES)*
