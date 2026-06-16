@@ -702,6 +702,9 @@ def main():
                         help="Embed ground truth comparison block in the output record")
     parser.add_argument("--debug-text", action="store_true",
                         help="Print the preprocessed text sent to the LLM (for debugging anchor coverage)")
+    parser.add_argument("--annotation", default=None,
+                        help="Path to annotation_base.json for GT validation "
+                             "(default: looks for annotation_base.json next to the script)")
     args = parser.parse_args()
 
     if args.demo:
@@ -800,7 +803,10 @@ def main():
     # ── Step 7b: Embed ground truth comparison (optional) ────────────────────
     if args.validate:
         step("7b", "Comparing extraction against ground truth annotation")
-        record["validation"] = _build_validation_block(args.supplier, args.country, fields)
+        record["validation"] = _build_validation_block(
+            args.supplier, args.country, fields,
+            annotation_path=args.annotation
+        )
         passed = sum(1 for f in record["validation"]["fields"].values() if f["match"])
         total  = len(record["validation"]["fields"])
         pct    = round(passed / total * 100) if total > 0 else 0
@@ -829,232 +835,114 @@ def main():
     print()
 
 
-def _build_validation_block(supplier: str, country: str, fields: dict) -> dict:
+def _load_annotation_base(annotation_path: str | None) -> dict:
+    """
+    Load the annotation base JSON from disk.
+    Looks for annotation_base.json in the following order:
+    1. --annotation argument if provided
+    2. Annotations/ subfolder next to the script
+    3. Same folder as the script
+    """
+    import os
+    candidates = []
+    if annotation_path:
+        candidates.append(annotation_path)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates += [
+        os.path.join(script_dir, "Annotations", "annotation_base.json"),
+        os.path.join(script_dir, "annotation_base.json"),
+        "annotation_base.json",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    return {}
+
+
+def _keywords_check(ai_value, keywords: list[str]) -> bool:
+    """
+    Replace lambda check functions from hardcoded GT.
+    Returns True if any keyword from the list appears in the stringified AI value.
+    Special handling for null/absent fields (keywords list contains "null" or "none").
+    """
+    v_str = str(ai_value).lower() if ai_value is not None else "null"
+    is_null = ai_value is None or v_str in ("none", "null", "")
+
+    # If validation_keywords includes null/none, the correct answer IS null
+    if any(kw in ("null", "none") for kw in [k.lower() for k in keywords]):
+        return is_null
+
+    if is_null:
+        return False
+
+    return any(kw.lower() in v_str for kw in keywords)
+
+
+def _build_validation_block(supplier: str, country: str, fields: dict,
+                             annotation_path: str | None = None) -> dict:
     """
     Builds the ground truth comparison block embedded in the output record.
-    Ground truth is manually verified from the annotated supplier T&C documents
-    (Annotation_Hertz_Sixt_Goldcar.xlsx).
+    Ground truth is loaded from annotation_base.json — single source of truth.
+    Falls back to a not-found message if no GT record exists for this supplier/country.
     """
-    # Ground truth per supplier × country — sourced from annotation file
-    GT = {
-        ("Hertz", "ES"): {
-            "source": "Annotation_Hertz_Sixt_Goldcar.xlsx — HERTZ_ES sheet",
-            "fields": {
-                "tpl_amount": {
-                    "expected_value": "STATUTORY_MINIMUM → COB 2026: Personal injury €70,000,000 | Property damage €15,000,000",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "HERTZ_ES Field 1 — statutory minimum, resolved via COB 2026 ES (Dec-25)",
-                    "check": lambda v: ("statutory_minimum" in str(v).lower() or "70,000,000" in str(v)),
-                },
-                "grace_period_minutes": {
-                    "expected_value": "null — not stated in T&C PDF (sourced separately from Hertz FAQ: 59 min)",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "HERTZ_ES Field 2 — absent from PDF. Multi-document problem: grace period in FAQ only.",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
-                },
-                "licence_rules": {
-                    "expected_value": "null — absent from Hertz ES T&C PDF. Licence rules in country-specific supplement only.",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "HERTZ_ES Field 3 — annotated as ABSENT in annotation file. Not in main T&C document.",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
-                },
-                "payment_rules": {
-                    "expected_value": "Credit and debit cards accepted. Cash not accepted.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "HERTZ_ES Field 4 — must mention card types (credit/debit). Deposit amounts may also appear.",
-                    "check": lambda v: (
-                        any(kw in str(v).lower() for kw in ["credit", "debit"]) and
-                        not (str(v).lower().strip().startswith("minimum") or
-                             str(v).lower().strip().startswith("deposit"))
-                    ),
-                },
-                "cross_border_conditions": {
-                    "expected_value": "Cross-border travel restricted. Prior permission required. Prohibited countries apply.",
-                    "expected_confidence": "MEDIUM",
-                    "annotation_note": "HERTZ_ES Field 5 — cross-border/travel restrictions section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                           ["cross-border", "transfronter", "restrict", "prohibit", "authoris"]),
-                },
-            }
-        },
-        ("Sixt", "ES"): {
-            "source": "Annotation_Hertz_Sixt_Goldcar.xlsx — SIXT_ES sheet",
-            "fields": {
-                "tpl_amount": {
-                    "expected_value": "STATUTORY_MINIMUM or EUR 85,000,000 — COB resolved to €70M/€15M",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_ES Field 1 — T&C references statutory minimum; explicit EUR 85M on tariff page",
-                    "check": lambda v: "85" in str(v) or "statutory_minimum" in str(v).lower() or "70,000,000" in str(v),
-                },
-                "grace_period_minutes": {
-                    "expected_value": "60 — confirmed on new help center URL (sixt.es/help-center/sections/como-llegar-y-llegada/). Not in T&C document.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_ES Field 2 — multi-document: 60 min stated on help center (UI updated June 2026, old URL 404). Source text: 'margen de 60 minutos desde la hora de recogida reservada'.",
-                    "check": lambda v: v is None or str(v) in ["None", "null", "", "60"],
-                },
-                "licence_rules": {
-                    "expected_value": "Valid licence required. IDP for non-Roman alphabet. No digital or photocopies.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_ES Field 3 — General Rental Information section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["idp","international","permit","non-eu","non eu","roman","latino","alfabeto"]),
-                },
-                "payment_rules": {
-                    "expected_value": "Credit/debit cards accepted. Prepaid not accepted.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_ES Field 4 — Tariff information section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["credit","debit","crédito","débito","tarjeta"]),
-                },
-                "cross_border_conditions": {
-                    "expected_value": "Zone-based system. Restrictions apply. Penalty for violations.",
-                    "expected_confidence": "MEDIUM",
-                    "annotation_note": "SIXT_ES Field 5 — Cross border rentals section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["zone","zona","150","prohibit","restrict","penalid","país"]),
-                },
-            }
-        },
-        ("Hertz", "DE"): {
-            "source": "Annotation_Hertz_Sixt_Goldcar.xlsx — HERTZ_DE sheet",
-            "fields": {
-                "tpl_amount": {
-                    "expected_value": "STATUTORY_MINIMUM — COB 2026 DE: Personal injury €7,500,000 | Property damage €1,300,000",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "HERTZ_DE Field 1 — statutory minimum; COB 2026 DE (Dec-25)",
-                    "check": lambda v: "statutory_minimum" in str(v).lower() or "7,500,000" in str(v) or "7500000" in str(v),
-                },
-                "grace_period_minutes": {
-                    "expected_value": "null — pickup grace period not stated in T&C PDF. Note: PDF mentions a return grace period (unrelated). Hertz global policy: 59 min from FAQ.",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "HERTZ_DE Field 2 — absent from PDF. Model may confuse return grace period with pickup. Correct answer is null.",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
-                },
-                "licence_rules": {
-                    "expected_value": "null — absent from Hertz DE T&C PDF. Licence rules in country-specific supplement only.",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "HERTZ_DE Field 3 — annotated as ABSENT. Same pattern as Hertz ES.",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
-                },
-                "payment_rules": {
-                    "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "HERTZ_DE Field 4 — payment section. Accepts card types OR deposit info — both are valid Hertz payment content.",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["credit", "debit", "kreditkarte", "200", "deposit", "supercover"]),
-                },
-                "cross_border_conditions": {
-                    "expected_value": "Cross-border travel permitted with prior permission. Forbidden countries invalidate insurance.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "HERTZ_DE Field 5 — cross-border/travel restrictions section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["cross-border","grenz","ausland","forbidden","prohibit","restrict","permission","genehmig"]),
-                },
-            }
-        },
-        ("Goldcar", "ES"): {
-            "source": "Annotation_Hertz_Sixt_Goldcar.xlsx — GOLDCAR sheet",
-            "fields": {
-                "tpl_amount": {
-                    "expected_value": "STATUTORY_MINIMUM — COB 2026 ES: Personal injury €70,000,000 | Property damage €15,000,000",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "GOLDCAR_ES Field 1 — T&C states 'compulsory motor insurance and Complementary Civil Liability' only; no specific amount. COB 2026 ES lookup required.",
-                    "check": lambda v: "statutory_minimum" in str(v).lower() or "70,000,000" in str(v) or "70000000" in str(v),
-                },
-                "grace_period_minutes": {
-                    "expected_value": "360 — Goldcar guarantees reservation for 6 hours after stipulated pickup time (within opening hours).",
-                    "expected_confidence": "MEDIUM",
-                    "annotation_note": "GOLDCAR_ES Field 2 — 'garantizará tu reserva durante seis (6) horas'. In T&C as 'Recogida del vehículo'. 360 min. Unusually long vs Sixt (60) and Hertz (59).",
-                    "check": lambda v: str(v) in ["360", "6"] or (isinstance(v, int) and v == 360),
-                },
-                "licence_rules": {
-                    "expected_value": "Min. age 21. Licence held min. 1 year. Physical licence always required. Digital licences only accepted if Spanish DGT via miDGT app. US/Canadian: IDP (1949 Geneva Convention) + national licence required.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "GOLDCAR_ES Field 3 — clause 11 / clause 18 / AGE AND DRIVING LICENCE section. Goldcar minimum is 21 for ALL vehicles (unlike Sixt/Hertz at 18).",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["21","idp","digital","midge","dgt","geneva","physical"]),
-                },
-                "payment_rules": {
-                    "expected_value": "Visa and Mastercard ONLY (credit and debit). Amex, Diners Club, Maestro, Postepay, prepaid cards, virtual cards, and cash NOT accepted at counter. Two credit cards required for premium vehicle categories. Deposit required; amount in Special Terms.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "GOLDCAR_ES Field 4 — clause 4 + clause 6.3/6.4. Key Goldcar restriction: ONLY Visa/MC accepted — narrower than Sixt or Hertz.",
-                    "check": lambda v: (
-                        any(kw in str(v).lower() for kw in ["visa","mastercard","master card"]) and
-                        any(kw in str(v).lower() for kw in ["amex","american express","diners","maestro","prepaid","not accepted","no acepta"])
-                    ),
-                },
-                "cross_border_conditions": {
-                    "expected_value": "Restricted to 5 countries only: Andorra, France (continental), Italy (continental), Portugal (continental), Gibraltar. Cross-Border coverage + express branch authorisation required. GPS tracking enforced — contract auto-terminated on violation. Formentera and Ibiza: NEVER permitted. Canary Islands and Balearics (excl. Formentera/Ibiza): permitted with Cross-Border coverage.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "GOLDCAR_ES Field 5 — clause 7.1. Most restrictive cross-border policy of the 3 suppliers. GPS enforcement explicitly stated.",
-                    "check": lambda v: any(kw in str(v).lower() for kw in ["andorra","5 countr","five countr","gps","formentera","cross-border coverage","cross border coverage"]),
-                },
-            }
-        },
-        ("Sixt", "DE"): {
-            "source": "sixt.de/php/terms — live URL (German language document)",
-            "fields": {
-                "tpl_amount": {
-                    "expected_value": "EUR 100,000,000 (max EUR 12,000,000 per person)",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "Haftpflichtversicherung EUR 100 Mio. explicitly stated in German source",
-                    "check": lambda v: "100" in str(v),
-                },
-                "grace_period_minutes": {
-                    "expected_value": "null — 60-Minuten-Karenz not present in this URL variant",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "SIXT_DE Field 2 — grace period absent from this T&C page URL; present in other Sixt DE document variants",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
-                },
-                "licence_rules": {
-                    "expected_value": "EU/EEA licence required. Original only — no photocopies or digital. Non-German requires certified translation.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 3 — Fahrerlaubnis / Führerschein section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["eu", "eea", "original", "digital", "translation", "übersetz", "photocop"]),
-                },
-                "payment_rules": {
-                    "expected_value": "Valid payment method required. No cash or digital documents accepted.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 4 — Zahlungsmittel section. This URL variant does not list specific card brands.",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["payment", "zahlungsmittel", "cash", "card", "karte", "visa", "prepaid"]),
-                },
-                "cross_border_conditions": {
-                    "expected_value": "4-zone system. Zone I permitted. Zone IV prohibited. Vehicle restrictions apply.",
-                    "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 5 — Fahrten ins Ausland / zone system",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["zone", "ausland", "abroad", "border", "prohibit", "verboten"]),
-                },
-            }
-        },
-    }
+    data = _load_annotation_base(annotation_path)
 
-    gt = GT.get((supplier, country))
-    if not gt:
+    if not data:
         return {
-            "note": f"No ground truth available for {supplier} / {country}. "
-                    "Add to the GT table in _build_validation_block().",
+            "note": "annotation_base.json not found. Run with --annotation path/to/annotation_base.json",
             "fields": {},
             "ground_truth_source": "N/A",
         }
 
+    # Find the matching record
+    record_id = f"{supplier.upper()}_{country.upper()}"
+    # Also try mixed case match (e.g. Goldcar_ES)
+    gt_record = None
+    for r in data.get("records", []):
+        if r.get("id", "").upper() == record_id or            (r.get("supplier", "").lower() == supplier.lower() and
+            r.get("country", "").upper() == country.upper()):
+            gt_record = r
+            break
+
+    if not gt_record:
+        return {
+            "note": f"No ground truth in annotation_base.json for {supplier} / {country}. "
+                    "Add a record to annotation_base.json to enable validation.",
+            "fields": {},
+            "ground_truth_source": "N/A",
+        }
+
+    gt_fields   = gt_record.get("fields", {})
+    source_note = gt_record.get("sources", {}).get("primary", {}).get("url", "annotation_base.json")
+
+    FIELD_NAMES = ["tpl_amount", "grace_period_minutes", "licence_rules",
+                   "payment_rules", "cross_border_conditions"]
+
     result_fields = {}
-    for fname, fgt in gt["fields"].items():
+    for fname in FIELD_NAMES:
+        fgt      = gt_fields.get(fname, {})
         ai_field = fields.get(fname, {})
         ai_val   = ai_field.get("value")
         ai_conf  = ai_field.get("confidence", "LOW")
-        match    = fgt["check"](ai_val)
+
+        keywords = fgt.get("validation_keywords", [])
+        match    = _keywords_check(ai_val, keywords) if keywords else False
+
         result_fields[fname] = {
-            "match":                   match,
-            "ai_value":                str(ai_val or "")[:120],
-            "ai_confidence":           ai_conf,
-            "ai_source_text":          str(ai_field.get("source_text") or "")[:90],
-            "expected_value":          fgt["expected_value"],
-            "expected_confidence":     fgt["expected_confidence"],
-            "annotation_note":         fgt["annotation_note"],
+            "match":               match,
+            "ai_value":            str(ai_val or "")[:120],
+            "ai_confidence":       ai_conf,
+            "ai_source_text":      str(ai_field.get("source_text") or "")[:90],
+            "expected_value":      fgt.get("expected_value", "N/A"),
+            "expected_confidence": fgt.get("confidence", "N/A"),
+            "annotation_note":     fgt.get("annotation_note", ""),
         }
 
     return {
-        "ground_truth_source": gt["source"],
+        "ground_truth_source":  source_note,
         "production_target_pct": 95,
-        "note": "Demo mode uses document-aware regex. Live GPT-4o achieves ≥95%.",
+        "note": "Validation against annotation_base.json — keyword matching on extracted values.",
         "fields": result_fields,
     }
 

@@ -1,11 +1,11 @@
 {
-  "record_id": "Sixt-DE-1781615728",
+  "record_id": "Sixt-DE-1781630421",
   "supplier": "Sixt",
   "pickup_country": "DE",
   "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
-  "document_hash": "a4973b3ad93d663af9d7913c3182fe5d",
-  "ingested_at": "2026-06-16T13:15:21.496175+00:00",
-  "extracted_at": "2026-06-16T13:15:28.979661+00:00",
+  "document_hash": "bef0b82ec85c9ba2832f84964a8de070",
+  "ingested_at": "2026-06-16T17:20:13.749431+00:00",
+  "extracted_at": "2026-06-16T17:20:21.354303+00:00",
   "extraction_model": "gpt-4o-mini",
   "overall_confidence": "MEDIUM",
   "requires_human_review": false,
@@ -26,17 +26,17 @@
       "source_text": null
     },
     "licence_rules": {
-      "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
+      "value": "EU/EWR licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
       "confidence": "HIGH",
       "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
     },
     "payment_rules": {
-      "value": "Valid payment method required at vehicle return. No cash accepted.",
+      "value": "Valid payment method required at vehicle return. Original documents only.",
       "confidence": "HIGH",
-      "source_text": "mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen."
+      "source_text": "ein ab Fahrzeugrckgabe mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen."
     },
     "cross_border_conditions": {
-      "value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to certain vehicle categories.",
+      "value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to luxury and special vehicles.",
       "confidence": "HIGH",
       "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken."
     }
@@ -45,61 +45,61 @@
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-16T13:15:28.979670+00:00"
+    "last_updated": "2026-06-16T17:20:21.354313+00:00"
   },
   "validation": {
-    "ground_truth_source": "sixt.de/php/terms — live URL (German language document)",
+    "ground_truth_source": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
     "production_target_pct": 95,
-    "note": "Demo mode uses document-aware regex. Live GPT-4o achieves ≥95%.",
+    "note": "Validation against annotation_base.json — keyword matching on extracted values.",
     "fields": {
       "tpl_amount": {
         "match": true,
         "ai_value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
         "ai_confidence": "HIGH",
         "ai_source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in ",
-        "expected_value": "EUR 100,000,000 (max EUR 12,000,000 per person)",
+        "expected_value": "EUR 100,000,000",
         "expected_confidence": "HIGH",
-        "annotation_note": "Haftpflichtversicherung EUR 100 Mio. explicitly stated in German source"
+        "annotation_note": "Explicit supplier figure — COB lookup not required. Max €12M per person."
       },
       "grace_period_minutes": {
-        "match": true,
+        "match": false,
         "ai_value": "",
         "ai_confidence": "LOW",
         "ai_source_text": "",
-        "expected_value": "null — 60-Minuten-Karenz not present in this URL variant",
-        "expected_confidence": "LOW",
-        "annotation_note": "SIXT_DE Field 2 — grace period absent from this T&C page URL; present in other Sixt DE document variants"
+        "expected_value": 60,
+        "expected_confidence": "HIGH",
+        "annotation_note": "Sourced from Sixt DE help center /anfahrt-und-ankunft/. With flight number: up to 24 hours guaranteed. Airport stations stay open 1 hour after closing for delayed flights."
       },
       "licence_rules": {
         "match": true,
-        "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
+        "ai_value": "EU/EWR licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
         "ai_confidence": "HIGH",
         "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
-        "expected_value": "EU/EEA licence required. Original only — no photocopies or digital. Non-German requires certified translation.",
+        "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
         "expected_confidence": "HIGH",
-        "annotation_note": "SIXT_DE Field 3 — Fahrerlaubnis / Führerschein section"
+        "annotation_note": "Well documented in main T&C. Ukrainian licence exception is time-limited (03/2027). Premium vehicles (GELY/WFLY/JELY/JELP): min. 5 prior Sixt rentals required."
       },
       "payment_rules": {
         "match": true,
-        "ai_value": "Valid payment method required at vehicle return. No cash accepted.",
+        "ai_value": "Valid payment method required at vehicle return. Original documents only.",
         "ai_confidence": "HIGH",
-        "ai_source_text": "mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen.",
-        "expected_value": "Valid payment method required. No cash or digital documents accepted.",
+        "ai_source_text": "ein ab Fahrzeugrckgabe mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel",
+        "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus, Amex BTA/iBTA accepted. Maestro/VPAY: vans and trucks + vehicles up to F*** only. Prepaid NOT accepted. Cash NOT accepted. Deposit: rental + €300 to €2,000 by vehicle group.",
         "expected_confidence": "HIGH",
-        "annotation_note": "SIXT_DE Field 4 — Zahlungsmittel section. This URL variant does not list specific card brands."
+        "annotation_note": "Cash NOT accepted in Germany (unlike Spain). EC-Karte not accepted for deposit (Germany-specific). Maestro/VPAY limited to vans/trucks and F*** or below."
       },
       "cross_border_conditions": {
         "match": true,
-        "ai_value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to certain vehicle categories.",
+        "ai_value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to luxury and special vehicles.",
         "ai_confidence": "HIGH",
         "ai_source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken.",
-        "expected_value": "4-zone system. Zone I permitted. Zone IV prohibited. Vehicle restrictions apply.",
+        "expected_value": "4-zone system. Zone I: 22 countries (all vehicles). Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia (excl. W***,X***,GVAR,UVAR,S&L). Zone III: Estonia, Hungary, Latvia, Lithuania (standard only). Zone IV: prohibited all vehicles. Leaving European continent prohibited (incl. Ceuta & Melilla). Penalty: €150. Abroad fee: €7.49/day.",
         "expected_confidence": "HIGH",
-        "annotation_note": "SIXT_DE Field 5 — Fahrten ins Ausland / zone system"
+        "annotation_note": "Fully documented in main T&C. Ferry transport within permitted zones is allowed. Abroad fee: €7.49/day or €29.75/week. XFLP/XFLY: €30/day."
       }
     },
-    "fields_correct": 5,
+    "fields_correct": 4,
     "fields_total": 5,
-    "accuracy_pct": 100
+    "accuracy_pct": 80
   }
 }

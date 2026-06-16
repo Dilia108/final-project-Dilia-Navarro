@@ -1,0 +1,144 @@
+{
+  "name": "TermsIQ — URL Validity Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Schedule Trigger (Daily 08:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "python",
+        "options": {
+          "cwd": "C:/Users/dilia/OneDrive/IronHack/Projects/final-project-Dilia-Navarro"
+        },
+        "arguments": "poc/url_agent.py --annotation poc/annotation_base.json --log poc/url_agent_log.json"
+      },
+      "id": "node-run-agent",
+      "name": "Run URL Agent",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.exitCode }}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "node-check-issues",
+      "name": "Issues Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the agent output to extract issue details\nconst stdout = $input.first().json.stdout || '';\nconst stderr = $input.first().json.stderr || '';\nconst exitCode = $input.first().json.exitCode;\n\n// Extract the ACTION REQUIRED section from stdout\nconst actionSection = stdout.split('ACTION REQUIRED:')[1] || '';\n\n// Count issues from summary line\nconst issuesMatch = stdout.match(/Issues\\s*:\\s*(\\d+)/);\nconst issuesCount = issuesMatch ? parseInt(issuesMatch[1]) : 0;\n\n// Extract individual issues\nconst issueBlocks = [];\nconst lines = actionSection.split('\\n');\nlet currentIssue = null;\n\nfor (const line of lines) {\n  const recordMatch = line.match(/\\[(\\w+)\\]\\s+(.+)/);\n  if (recordMatch) {\n    if (currentIssue) issueBlocks.push(currentIssue);\n    currentIssue = { record: recordMatch[1], path: recordMatch[2].trim() };\n  } else if (currentIssue) {\n    const statusMatch = line.match(/Status\\s*:\\s*(\\S+)/);\n    const urlMatch    = line.match(/URL\\s*:\\s*(\\S+)/);\n    const noteMatch   = line.match(/Note\\s*:\\s*(.+)/);\n    const fieldsMatch = line.match(/Fields\\s*:\\s*(.+)/);\n    if (statusMatch) currentIssue.status = statusMatch[1];\n    if (urlMatch)    currentIssue.url    = urlMatch[1];\n    if (noteMatch)   currentIssue.note   = noteMatch[1].trim();\n    if (fieldsMatch) currentIssue.fields = fieldsMatch[1].trim();\n  }\n}\nif (currentIssue) issueBlocks.push(currentIssue);\n\nreturn [{\n  json: {\n    exitCode,\n    issuesCount,\n    issues: issueBlocks,\n    stdout,\n    stderr,\n    runDate: new Date().toISOString().split('T')[0]\n  }\n}];\n"
+      },
+      "id": "node-parse-output",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HTML email body from parsed issues\nconst data = $input.first().json;\nconst issues = data.issues || [];\nconst runDate = data.runDate;\n\nconst statusColors = {\n  '404':         '#dc2626',\n  'JS_RENDERED': '#d97706',\n  'REDIRECT':    '#2563eb',\n  'TIMEOUT':     '#7c3aed',\n  'ERROR':       '#dc2626',\n};\n\nconst actionGuide = {\n  '404':         'URL deleted. Find replacement and update annotation_base.json.',\n  'JS_RENDERED': 'Page is now JS-rendered. Add or update PDF fallback URL.',\n  'REDIRECT':    'URL moved. Update annotation_base.json with the new URL.',\n  'TIMEOUT':     'Server slow. Retry manually before taking action.',\n  'ERROR':       'Unexpected error. Check URL manually.',\n};\n\nlet rows = '';\nfor (const issue of issues) {\n  const color  = statusColors[issue.status] || '#374151';\n  const action = actionGuide[issue.status]  || 'Check manually.';\n  rows += `\n    <tr>\n      <td style=\"padding:8px;border:1px solid #e5e7eb;font-weight:bold\">${issue.record || ''}</td>\n      <td style=\"padding:8px;border:1px solid #e5e7eb;color:${color};font-weight:bold\">${issue.status || ''}</td>\n      <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:12px;color:#6b7280;word-break:break-all\">${issue.url || ''}</td>\n      <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:12px\">${issue.note || ''}</td>\n      <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:12px;color:#374151\">${action}</td>\n    </tr>`;\n}\n\nconst html = `\n<html><body style=\"font-family:Arial,sans-serif;color:#111827;max-width:900px;margin:0 auto\">\n  <h2 style=\"color:#dc2626\">⚠ TermsIQ URL Agent — Action Required</h2>\n  <p><strong>${issues.length} issue(s) detected</strong> during scheduled URL check on ${runDate}.</p>\n  <table style=\"border-collapse:collapse;width:100%;font-size:13px\">\n    <thead><tr style=\"background:#f3f4f6\">\n      <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Record</th>\n      <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Status</th>\n      <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">URL</th>\n      <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Note</th>\n      <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Action</th>\n    </tr></thead>\n    <tbody>${rows}</tbody>\n  </table>\n  <h3>Next steps</h3>\n  <ol>\n    <li>Open <code>poc/annotation_base.json</code></li>\n    <li>Find the affected record and update the URL or url_status</li>\n    <li>Re-run: <code>python poc/url_agent.py --annotation poc/annotation_base.json</code></li>\n  </ol>\n  <p style=\"color:#6b7280;font-size:12px\">— TermsIQ URL Agent | ${runDate}</p>\n</body></html>`;\n\nconst plain = `TermsIQ URL Agent — Action Required\\n${'='.repeat(50)}\\n${issues.length} issue(s) on ${runDate}:\\n\\n` +\n  issues.map(i => `[${i.record}] ${i.status}\\n  URL: ${i.url}\\n  Note: ${i.note}`).join('\\n\\n');\n\nreturn [{ json: { ...data, emailHtml: html, emailPlain: plain } }];\n"
+      },
+      "id": "node-build-email",
+      "name": "Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 480]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.TERMSIQ_SMTP_USER }}",
+        "toEmail": "={{ $env.TERMSIQ_NOTIFY_TO }}",
+        "subject": "=⚠ TermsIQ URL Agent — {{ $json.issuesCount }} issue(s) — {{ $json.runDate }}",
+        "emailFormat": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "node-send-email",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [900, 480],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-termsiq",
+          "name": "TermsIQ SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log a clean all-OK run to console\nconst stdout = $input.first().json.stdout || '';\nconst summaryLine = stdout.split('\\n').find(l => l.includes('Issues')) || '';\n\nconsole.log(`[TermsIQ URL Agent] All OK — ${new Date().toISOString()}`);\nconsole.log(summaryLine.trim());\n\nreturn [{ json: { status: 'ALL_OK', timestamp: new Date().toISOString() } }];\n"
+      },
+      "id": "node-log-ok",
+      "name": "Log — All OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily 08:00)": {
+      "main": [
+        [{ "node": "Run URL Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run URL Agent": {
+      "main": [
+        [
+          { "node": "Issues Found?",      "type": "main", "index": 0 },
+          { "node": "Parse Agent Output", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Issues Found?": {
+      "main": [
+        [{ "node": "Log — All OK", "type": "main", "index": 0 }],
+        [{ "node": "Build Email",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [{ "node": "Build Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Email": {
+      "main": [
+        [{ "node": "Send Alert Email", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["TermsIQ", "monitoring", "url-agent"],
+  "meta": {
+    "instanceId": "termsiq-poc"
+  }
+}

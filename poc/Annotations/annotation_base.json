@@ -1,0 +1,664 @@
+{
+  "$schema": "https://termsiq.io/schemas/annotation/v1.0",
+  "schema_version": "1.0",
+  "description": "TermsIQ ground truth annotation base — manually verified T&C field values per supplier × country. Used for LLM extraction validation and few-shot example selection.",
+  "last_updated": "2026-06-16",
+  "source_file": "Annotation_Hertz_Sixt_Goldcar_2_.xlsx",
+  "fields_defined": [
+    "tpl_amount",
+    "grace_period_minutes",
+    "licence_rules",
+    "payment_rules",
+    "cross_border_conditions"
+  ],
+  "confidence_values": [
+    "HIGH",
+    "MEDIUM",
+    "LOW"
+  ],
+  "url_check": {
+    "description": "URL validity status — updated by URL agent",
+    "status_values": [
+      "OK",
+      "404",
+      "JS_RENDERED",
+      "REDIRECT",
+      "UNCHECKED"
+    ],
+    "last_checked": "2026-06-16T16:23:34.498866+00:00"
+  },
+  "records": [
+    {
+      "id": "HERTZ_ES",
+      "supplier": "Hertz",
+      "country": "ES",
+      "date_accessed": "2026-06-13",
+      "sources": {
+        "primary": {
+          "url": "https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf",
+          "type": "pdf",
+          "language": "en",
+          "url_status": "OK",
+          "notes": "Main T&C PDF — English version"
+        },
+        "secondary": [
+          {
+            "url": "https://images.hertz.com/pdfs/RT_FULL_ES_ES.pdf",
+            "type": "pdf",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Main T&C PDF — Spanish version"
+          },
+          {
+            "url": "https://www.hertz.es/rentacar/customersupport/index.jsp?targetPage=faq.jsp",
+            "type": "web",
+            "language": "en",
+            "url_status": "OK",
+            "notes": "Hertz FAQ — licence rules sourced here. Questions order: ¿Cuáles son los requerimientos de Hertz en relación con el permiso de conducir? then ¿Cuáles son los requisitos de Hertz en relación a la licencia/permiso de conducir?",
+            "fields_covered": [
+              "licence_rules"
+            ]
+          },
+          {
+            "url": "https://hertz.my.site.com/care/articles/es/FAQ/Tarjetas-de-d%C3%A9bito-prepago-1491399187323?r=69&ui-knowledge-components-aura-actions.KnowledgeArticleVersionCreateDraftFromOnlineAction.createDraftFromOnlineArticle=1",
+            "type": "web",
+            "language": "en",
+            "url_status": "OK",
+            "notes": "Source is from Section of FAQ: ¿Qué incluye mi tarifa en prepago? and ¿Qué formas de pago acepta Hertz?",
+            "fields_covered": [
+              "payment_rules"
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "tpl_amount": {
+          "expected_value": "STATUTORY_MINIMUM",
+          "resolved_value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+          "resolution_method": "COB_LOOKUP",
+          "cob_source": "COB Minimum Amount of Coverage 2026 (Dec-25)",
+          "confidence": "HIGH",
+          "source_text": "Cumple con todos los requisitos legales en materia de responsabilidad civil frente a terceros",
+          "document_heading": "SEGURO A TERCEROS (TPLI) / Seguro de responsabilidad civil",
+          "annotation_note": "Statutory minimum — COB 2026 ES lookup required. Document says 'meets all legal requirements' only.",
+          "validation_keywords": [
+            "statutory_minimum",
+            "70,000,000",
+            "70000000"
+          ]
+        },
+        "grace_period_minutes": {
+          "expected_value": null,
+          "enriched_value": 59,
+          "enriched_source": "Hertz FAQ + AutoEurope aggregator",
+          "enriched_url": "https://www.hertz.com/rentacar/reservation/reviewmodifycancel/templates/rentalTerms.jsp?KEYWORD=RESERVATIONS&EOAG=USNT50",
+          "confidence": "LOW",
+          "enriched_confidence": "MEDIUM",
+          "source_text": null,
+          "document_heading": "Not found in primary PDF",
+          "annotation_note": "ABSENT from PDF. Multi-document problem: grace period in Hertz FAQ only. Policy: 59 minutes. Not stated in ES-specific PDF.",
+          "multi_document": true,
+          "validation_keywords": [
+            "null",
+            "none",
+            "59"
+          ]
+        },
+        "licence_rules": {
+          "expected_value": null,
+          "enriched_value": "EU/EEA licences accepted without IDP. Non-EU licences require IDP. Digital licences and photocopies NOT accepted. Licence held min. 1 year.",
+          "enriched_source": "Hertz FAQ Spain + Hertz EU guidance",
+          "enriched_url": "https://hertz.my.site.com/care/htz_faqsearchwebform",
+          "confidence": "LOW",
+          "enriched_confidence": "MEDIUM",
+          "source_text": null,
+          "document_heading": "¿Cuáles son los requerimientos de Hertz en relación con el permiso de conducir?",
+          "annotation_note": "ABSENT from main T&C PDF. Licence rules in country-specific supplement and FAQ only. Spain is strict on IDP enforcement for non-EU drivers.",
+          "multi_document": true,
+          "validation_keywords": [
+            "null",
+            "none"
+          ]
+        },
+        "payment_rules": {
+          "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
+          "enriched_value": "Credit: Visa, Mastercard, Amex, Diners Club. Debit: Visa/MC/Discover (compact–fullsize, driver min. 25). Prepaid: NOT accepted. Cash: NOT accepted for deposit. Deposit: min €200 + €500 if no SuperCover.",
+          "enriched_source": "Hertz ES PDF (deposit amounts) + Hertz FAQ (card brands)",
+          "confidence": "LOW",
+          "enriched_confidence": "HIGH",
+          "source_text": "Cuando recoja el vehículo, bloquearemos una cantidad en su tarjeta de crédito o débito. Siempre se aplicará un mínimo de 200 euros.",
+          "document_heading": "RESERVA DE CRÉDITO/DEPÓSITO",
+          "annotation_note": "PDF states credit/debit accepted but does not specify card brands. Brands sourced from Hertz FAQ.",
+          "multi_document": true,
+          "validation_keywords": [
+            "credit",
+            "debit",
+            "200",
+            "deposit",
+            "supercover"
+          ]
+        },
+        "cross_border_conditions": {
+          "expected_value": "Prior permission required. Cross-border fee applies. Insurance extended to permitted countries. Forbidden countries in Country Specific Terms. Penalty: €2,317 repatriation.",
+          "confidence": "HIGH",
+          "source_text": "Solo podrá conducir el vehículo en el país de alquiler. Si desea conducir el vehículo en cualquier otro país, deberá obtener nuestro permiso previo.",
+          "document_heading": "Restricciones de viaje / Conducir en el extranjero y viajes transfronterizos",
+          "annotation_note": "Well documented in ES PDF. Forbidden country map is an image — not text-extractable. Production needs image recognition or separate lookup.",
+          "validation_keywords": [
+            "cross-border",
+            "transfronter",
+            "restrict",
+            "prohibit",
+            "authoris",
+            "permission"
+          ]
+        }
+      }
+    },
+    {
+      "id": "HERTZ_DE",
+      "supplier": "Hertz",
+      "country": "DE",
+      "date_accessed": "2026-06-13",
+      "sources": {
+        "primary": {
+          "url": "https://images.hertz.com/pdfs/RT_FULL_DE_EN.pdf",
+          "type": "pdf",
+          "language": "en",
+          "url_status": "OK",
+          "notes": "Main T&C PDF — English version for Germany"
+        },
+        "secondary": [
+          {
+            "url": "https://www.hertz.de/p/fahrzeug-guide/buchen-sie-ihren-mietwagen",
+            "type": "web",
+            "language": "de",
+            "url_status": "OK",
+            "notes": "Section: Mietbedingungen  — Führerschein",
+            "fields_covered": [
+              "licence_rules"
+            ]
+          },
+          {
+            "url": "https://www.hertz.de/p/fahrzeug-guide/buchen-sie-ihren-mietwagen",
+            "type": "web",
+            "language": "en",
+            "url_status": "OK",
+            "notes": "Section: Zahlungsart — Zahlungszarten",
+            "fields_covered": [
+              "payment_rules"
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "tpl_amount": {
+          "expected_value": "STATUTORY_MINIMUM",
+          "resolved_value": "Personal injury: €7,500,000 | Property damage: €1,300,000",
+          "resolution_method": "COB_LOOKUP",
+          "cob_source": "COB Minimum Amount of Coverage 2026 (Dec-25)",
+          "confidence": "MEDIUM",
+          "source_text": "Third Party Liability Insurance which protects you and any authorised driver against claims from any other person for death, personal injury or damage to property.",
+          "document_heading": "INSURANCE AND EXCESS WAIVER OPTIONS",
+          "annotation_note": "Statutory minimum — COB 2026 DE lookup required.",
+          "validation_keywords": [
+            "statutory_minimum",
+            "7,500,000",
+            "7500000"
+          ]
+        },
+        "grace_period_minutes": {
+          "expected_value": null,
+          "enriched_value": 59,
+          "enriched_source": "Hertz FAQ + aggregator sources",
+          "confidence": "LOW",
+          "enriched_confidence": "MEDIUM",
+          "source_text": null,
+          "document_heading": "Absent from PDF",
+          "annotation_note": "ABSENT from DE PDF. Same pattern as Hertz ES. German term likely 'Kulanzfrist' or 'Wartefrist'. PDF mentions return grace period only — do NOT confuse with pickup grace period.",
+          "multi_document": true,
+          "validation_keywords": [
+            "null",
+            "none"
+          ]
+        },
+        "licence_rules": {
+          "expected_value": null,
+          "enriched_value": "EU/EEA licences accepted without IDP. Non-Roman script requires IDP or certified German translation. ADAC translation accepted. Digital licences NOT accepted. Photocopies NOT accepted.",
+          "enriched_source": "Hertz FAQ + Hertz EU guidance + Sixt DE cross-reference",
+          "confidence": "LOW",
+          "enriched_confidence": "MEDIUM",
+          "source_text": null,
+          "document_heading": "Absent from main PDF",
+          "annotation_note": "ABSENT from main T&C PDF. Germany-specific: ADAC translation acceptable. EC-Karte exclusion is Germany-specific.",
+          "multi_document": true,
+          "validation_keywords": [
+            "null",
+            "none"
+          ]
+        },
+        "payment_rules": {
+          "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
+          "enriched_value": "Credit: Visa, Mastercard, Amex, Diners Club. Debit: international Visa/MC/Discover accepted. EC-Karte (German domestic debit): NOT accepted. Prepaid: NOT accepted. Cash: NOT accepted.",
+          "enriched_source": "Hertz DE PDF + Hertz FAQ (card brands + EC-Karte exclusion)",
+          "confidence": "LOW",
+          "enriched_confidence": "HIGH",
+          "source_text": "When you collect the vehicle we will reserve an amount on your credit or debit card (or take a deposit).",
+          "document_heading": "RESERVATION OF CREDIT/DEPOSIT",
+          "annotation_note": "PDF states credit/debit only. EC-Karte exclusion is Germany-specific and critical — not in PDF. Cash NOT accepted in Germany (unlike Spain).",
+          "multi_document": true,
+          "validation_keywords": [
+            "credit",
+            "debit",
+            "200",
+            "deposit",
+            "supercover"
+          ]
+        },
+        "cross_border_conditions": {
+          "expected_value": "Prior permission required. Cross-border fee applies. Vans/trucks (A4,B4,C4,K4 ≥2.5t): no cross-border commercial freight from 01.07.2026. Forbidden countries: insurance void + €2,317 repatriation penalty.",
+          "confidence": "HIGH",
+          "source_text": "You may only drive the vehicle in the country of rental. If you want to drive the vehicle in any other country, you must gain our prior permission.",
+          "document_heading": "Driving abroad and cross-border travel / Travel Restrictions",
+          "annotation_note": "Well documented in DE PDF including van/truck restriction from July 2026. Forbidden country map is an image — not text-extractable.",
+          "validation_keywords": [
+            "cross-border",
+            "grenz",
+            "ausland",
+            "forbidden",
+            "prohibit",
+            "restrict",
+            "permission"
+          ]
+        }
+      }
+    },
+    {
+      "id": "SIXT_ES",
+      "supplier": "Sixt",
+      "country": "ES",
+      "date_accessed": "2026-06-15",
+      "sources": {
+        "primary": {
+          "url": "https://www.sixt.es/php/terms/view?language=en_US&liso=ES&rtar=000&view=EPP&tlang=es_ES&style=typo3",
+          "type": "web",
+          "language": "es",
+          "url_status": "OK",
+          "notes": "Main T&C web page — Spanish language"
+        },
+        "secondary": [
+          {
+            "url": "https://www.sixt.es/help-center/sections/como-llegar-y-llegada/",
+            "type": "web",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Grace period sourced here. Previous URL /help-center/articles/recogida-tardia/ returned 404 after Sixt June 2026 help center restructure.",
+            "fields_covered": [
+              "grace_period_minutes"
+            ]
+          },
+          {
+            "url": "https://www.sixt.es/shared/t-c/sixt_ES_en.pdf",
+            "type": "pdf",
+            "language": "en",
+            "url_status": "OK",
+            "notes": "Full T&C PDF — English version - General Rental Conditions  3. Methods of Payment , A. USE OF THE VEHICLE   paragraph 6. ",
+            "fields_covered": [
+              "payment_rules",
+              "cross_border_conditions"
+            ]
+          },
+          {
+            "url": "https://www.sixt.es/help-center/articles/necesito-un-permiso-de-conducir-internacional-para-alquilar-con-sixt/",
+            "type": "web",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Licence rules detail",
+            "fields_covered": [
+              "licence_rules"
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "tpl_amount": {
+          "expected_value": "EUR 85,000,000",
+          "confidence": "HIGH",
+          "source_text": "suma máxima asegurada por lesiones personales y daños por valor de EUR 85 Mio",
+          "document_heading": "Protection conditions / Third party insurance",
+          "annotation_note": "Explicit supplier figure — COB lookup not required.",
+          "validation_keywords": [
+            "85",
+            "85,000,000",
+            "85000000"
+          ]
+        },
+        "grace_period_minutes": {
+          "expected_value": 60,
+          "confidence": "HIGH",
+          "source_text": "Se aplica un margen de 60 minutos desde la hora de recogida reservada, dentro del horario de apertura de la oficina.",
+          "document_heading": "¿qué pasa si mi vuelo se retrasa? / cómo llegar y llegada",
+          "annotation_note": "Sourced from Sixt ES help center. Not in main T&C page. Previous URL 404 after June 2026 restructure — new URL is /help-center/sections/como-llegar-y-llegada/",
+          "multi_document": true,
+          "validation_keywords": [
+            "60",
+            "60 min"
+          ]
+        },
+        "licence_rules": {
+          "expected_value": "Valid original licence required. Non-Latin alphabet requires IDP or official translation. Non-EU licences accepted if no visa or <6 months EU residency.",
+          "confidence": "HIGH",
+          "source_text": "Un permiso de conducir expedido en un idioma con un alfabeto no latino... debe ser complementado con un permiso de conducir internacional.",
+          "document_heading": "General Rental Information / Important documents / permiso de conducir",
+          "annotation_note": "Well documented in main T&C page. Spain-specific: after 6 months EU residency, EU licence required.",
+          "validation_keywords": [
+            "idp",
+            "international",
+            "permit",
+            "non-eu",
+            "roman",
+            "latino",
+            "alfabeto"
+          ]
+        },
+        "payment_rules": {
+          "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus accepted. Prepaid NOT accepted. Cash IS accepted in Spain. Maestro/VPAY for trucks only.",
+          "confidence": "HIGH",
+          "source_text": "Las tarjetas de débito o prepago no se pueden utilizar para pagos",
+          "document_heading": "Tariff information / General / Método de pago aceptado",
+          "annotation_note": "Cash IS accepted in Spain — key difference from Germany where cash is NOT accepted.",
+          "validation_keywords": [
+            "credit",
+            "debit",
+            "crédito",
+            "débito",
+            "tarjeta",
+            "prepaid"
+          ]
+        },
+        "cross_border_conditions": {
+          "expected_value": "4-zone system. Zone I: 22 countries. Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia. Zone III: Estonia, Hungary, Latvia, Lithuania. Zone IV: prohibited. Penalty: €150. Mainland-island transfer requires written authorisation.",
+          "confidence": "HIGH",
+          "source_text": "Est prohibido llevar el vehculo a pases distintos de los incluidos en la Zona 1.",
+          "document_heading": "Cross border rentals and territorial restrictions / Territorial restrictions",
+          "annotation_note": "Zone structure identical to Sixt DE. Spain-specific: Luxury Cars may not leave Spain without written authorisation. Penalty €150 per violation.",
+          "validation_keywords": [
+            "zone",
+            "zona",
+            "150",
+            "prohibit",
+            "cross-border"
+          ]
+        }
+      }
+    },
+    {
+      "id": "SIXT_DE",
+      "supplier": "Sixt",
+      "country": "DE",
+      "date_accessed": "2026-06-15",
+      "sources": {
+        "primary": {
+          "url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
+          "type": "web",
+          "language": "de",
+          "url_status": "OK",
+          "notes": "Main T&C web page — German language"
+        },
+        "secondary": [
+          {
+            "url": "https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/",
+            "type": "web",
+            "language": "de",
+            "url_status": "OK",
+            "notes": "Grace period / Karenzzeit sourced here",
+            "fields_covered": [
+              "grace_period_minutes"
+            ]
+          },
+          {
+            "url": "https://www.sixt.de/help-center/articles/welchen-fuehrerschein-brauche-ich-fuer-eine-anmietung-bei-sixt-in-deutschland/",
+            "type": "web",
+            "language": "de",
+            "url_status": "OK",
+            "notes": "Licence rules detail",
+            "fields_covered": [
+              "licence_rules"
+            ]
+          },
+          {
+            "url": "https://www.sixt.de/pages/mietinformationen/",
+            "type": "web",
+            "language": "de",
+            "url_status": "OK",
+            "notes": "General rental information",
+            "fields_covered": [
+              "payment_rules",
+              "licence_rules"
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "tpl_amount": {
+          "expected_value": "EUR 100,000,000",
+          "confidence": "HIGH",
+          "source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschäden in Höhe von EUR 100 Mio. Die maximale Deckungssumme je geschädigter Person beläuft sich auf EUR 12 Mio.",
+          "document_heading": "Haftungsbedingungen / Haftpflichtversicherung",
+          "annotation_note": "Explicit supplier figure — COB lookup not required. Max €12M per person.",
+          "validation_keywords": [
+            "100",
+            "100,000,000",
+            "100000000"
+          ]
+        },
+        "grace_period_minutes": {
+          "expected_value": 60,
+          "confidence": "HIGH",
+          "source_text": "Bei Verspätungen halten wir Ihr Fahrzeug bis zu 60 Minuten ab der gebuchten Abholzeit innerhalb der Stationsöffnungszeiten kostenfrei für Sie bereit.",
+          "document_heading": "Karenzzeit / 60-Minuten-Karenz",
+          "annotation_note": "Sourced from Sixt DE help center /anfahrt-und-ankunft/. With flight number: up to 24 hours guaranteed. Airport stations stay open 1 hour after closing for delayed flights.",
+          "multi_document": true,
+          "validation_keywords": [
+            "60",
+            "karenzzeit",
+            "60-minuten"
+          ]
+        },
+        "licence_rules": {
+          "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
+          "confidence": "HIGH",
+          "source_text": "Die gültige Fahrerlaubnis ist durch die Vorlage des originalen Führerscheins nachzuweisen. Fotokopien und digitale Dokumente werden nicht akzeptiert.",
+          "document_heading": "Allgemeine Anmietinformationen / Wichtige Dokumente / Führerscheine",
+          "annotation_note": "Well documented in main T&C. Ukrainian licence exception is time-limited (03/2027). Premium vehicles (GELY/WFLY/JELY/JELP): min. 5 prior Sixt rentals required.",
+          "validation_keywords": [
+            "eu",
+            "eea",
+            "original",
+            "digital",
+            "translation",
+            "photocop",
+            "übersetz"
+          ]
+        },
+        "payment_rules": {
+          "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus, Amex BTA/iBTA accepted. Maestro/VPAY: vans and trucks + vehicles up to F*** only. Prepaid NOT accepted. Cash NOT accepted. Deposit: rental + €300 to €2,000 by vehicle group.",
+          "confidence": "HIGH",
+          "source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB ebenso wie Kreditkarten von China Union Pay. Barzahlungen werden nicht akzeptiert.",
+          "document_heading": "Tarifinformationen / Allgemeines / Kredit- und Debit-Karten sowie Digital Wallets",
+          "annotation_note": "Cash NOT accepted in Germany (unlike Spain). EC-Karte not accepted for deposit (Germany-specific). Maestro/VPAY limited to vans/trucks and F*** or below.",
+          "validation_keywords": [
+            "payment",
+            "zahlungsmittel",
+            "cash",
+            "card",
+            "karte",
+            "visa",
+            "prepaid"
+          ]
+        },
+        "cross_border_conditions": {
+          "expected_value": "4-zone system. Zone I: 22 countries (all vehicles). Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia (excl. W***,X***,GVAR,UVAR,S&L). Zone III: Estonia, Hungary, Latvia, Lithuania (standard only). Zone IV: prohibited all vehicles. Leaving European continent prohibited (incl. Ceuta & Melilla). Penalty: €150. Abroad fee: €7.49/day.",
+          "confidence": "HIGH",
+          "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Länder beschränken. Die Einreise in Länder der Zone IV ist nicht gestattet. Bei Verstoß verlieren sämtliche Haftungsbeschränkungen ihre Gültigkeit.",
+          "document_heading": "Fahrten ins Ausland und Einreisebeschränkungen",
+          "annotation_note": "Fully documented in main T&C. Ferry transport within permitted zones is allowed. Abroad fee: €7.49/day or €29.75/week. XFLP/XFLY: €30/day.",
+          "validation_keywords": [
+            "zone",
+            "ausland",
+            "abroad",
+            "border",
+            "prohibit",
+            "verboten",
+            "150"
+          ]
+        }
+      }
+    },
+    {
+      "id": "GOLDCAR_ES",
+      "supplier": "Goldcar",
+      "country": "ES",
+      "date_accessed": "2026-06-15",
+      "sources": {
+        "primary": {
+          "url": "https://www.goldcar.es/en-gb/terms-and-conditions/",
+          "type": "web",
+          "language": "en",
+          "url_status": "OK",
+          "notes": "JS-rendered page — raw HTML yields only ~3,466 chars. Use PDF fallback."
+        },
+        "primary_pdf_fallback": {
+          "url": "local://TC - BCN - 2026-06-15T10_09_55Z.pdf",
+          "type": "pdf",
+          "language": "en",
+          "url_status": "SKIP",
+          "notes": "Goldcar T&C PDF — requires session-authenticated download from website. S3 bucket URL returns 403."
+        },
+        "secondary": [
+          {
+            "url": "https://www.goldcarhelp.com/faqs/319-puedo-recoger-el-vehiculo-fuera-del-horario-de-apertura-de-la-oficina",
+            "type": "web",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Grace period / booking guarantee sourced here",
+            "fields_covered": [
+              "grace_period_minutes"
+            ]
+          },
+          {
+            "url": "https://www.goldcarhelp.com/faqs/227-que-permisos-de-conducir-aceptamos",
+            "type": "web",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Licence rules by country of issue",
+            "fields_covered": [
+              "licence_rules"
+            ]
+          },
+          {
+            "url": "https://www.goldcarhelp.com/faqs/320-metodos-de-pago",
+            "type": "web",
+            "language": "es",
+            "url_status": "OK",
+            "notes": "Payment methods FAQ",
+            "fields_covered": [
+              "payment_rules"
+            ]
+          },
+          {
+            "url": "https://gcdata-documents.s3.amazonaws.com/APPENDIX%20-%20EN%20-%20Insurance%20and%20additional%20covers%20-%20Feb%202026%20%281%29.docx.pdf",
+            "type": "pdf",
+            "language": "en",
+            "url_status": "OK",
+            "notes": "Insurance appendix — describes TPL as statutory minimum per country. No euro figure given.",
+            "fields_covered": [
+              "tpl_amount"
+            ]
+          }
+        ]
+      },
+      "fields": {
+        "tpl_amount": {
+          "expected_value": "STATUTORY_MINIMUM",
+          "resolved_value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+          "resolution_method": "COB_LOOKUP",
+          "cob_source": "COB Minimum Amount of Coverage 2026 (Dec-25)",
+          "confidence": "LOW",
+          "enriched_confidence": "MEDIUM",
+          "source_text": "Las tarifas de alquiler incluyen las coberturas del Seguro Obligatorio del automóvil y del Complementario de Responsabilidad Civil",
+          "document_heading": "SEGUROS Y COBERTURAS / responsabilidad civil frente a terceros",
+          "annotation_note": "T&C states compulsory insurance included only — no specific amount. COB 2026 ES lookup required.",
+          "validation_keywords": [
+            "statutory_minimum",
+            "70,000,000",
+            "70000000"
+          ]
+        },
+        "grace_period_minutes": {
+          "expected_value": 360,
+          "confidence": "MEDIUM",
+          "source_text": "Goldcar garantizará tu reserva durante seis (6) horas después del tiempo estipulado en el contrato, dentro del horario de apertura de la oficina.",
+          "document_heading": "Recogida del vehículo",
+          "annotation_note": "6 hours = 360 minutes. Unusually long vs Sixt (60 min) and Hertz (59 min). This is a BOOKING GUARANTEE, not a classic grace period. Out-of-hours pickup incurs additional fees. Term used: 'garantizará tu reserva' — not 'grace period'.",
+          "validation_keywords": [
+            "360",
+            "6",
+            "6 hours",
+            "seis"
+          ]
+        },
+        "licence_rules": {
+          "expected_value": "Min. age 21 for ALL vehicles. Licence held min. 1 year. Physical licence always required. Digital licences only accepted if Spanish DGT via miDGT app. US/Canadian: IDP (1949 Geneva Convention Annex 10) + national licence required.",
+          "confidence": "HIGH",
+          "source_text": "Para finalizar el Contrato, el cliente deberá tener al menos 21 años, en cuyo caso deberá ser titular de un permiso de conducir desde hace al menos un año.",
+          "document_heading": "PERMISO DE CONDUCIR / AGE AND DRIVING LICENCE",
+          "annotation_note": "Goldcar minimum is 21 for ALL vehicles — stricter than Sixt/Hertz (18). Digital licences: ONLY Spanish DGT via miDGT app. All other digital licences rejected.",
+          "validation_keywords": [
+            "21",
+            "idp",
+            "digital",
+            "midgt",
+            "dgt",
+            "geneva",
+            "physical"
+          ]
+        },
+        "payment_rules": {
+          "expected_value": "Visa and Mastercard ONLY (credit and debit). Amex, Diners Club, Maestro, Postepay, prepaid cards, virtual cards, cash NOT accepted at counter. Two credit cards required for premium vehicles (F6, G1, G3, G5, G6, H6, J1, J3, K3, T6, U3, U5, Y3).",
+          "confidence": "HIGH",
+          "source_text": "The methods of payment accepted for your rental are: Debit card, Credit card VISA or MasterCard. Maestro, prepaid cards, Diners Club, American Express or Postepay will not be accepted.",
+          "document_heading": "methods of payment / payment method",
+          "annotation_note": "Goldcar ONLY accepts Visa and Mastercard — significantly narrower than Sixt or Hertz. Critical for fine-tuning: do not generalise Sixt/Hertz card lists to Goldcar.",
+          "validation_keywords": [
+            "visa",
+            "mastercard",
+            "amex",
+            "american express",
+            "diners",
+            "maestro",
+            "prepaid",
+            "not accepted"
+          ]
+        },
+        "cross_border_conditions": {
+          "expected_value": "5 countries only: Andorra, France (continental), Italy (continental), Portugal (continental), Gibraltar. Cross-Border coverage + express branch authorisation required. GPS tracking enforced — contract auto-terminated on violation. Formentera and Ibiza: NEVER permitted. Canary Islands and Balearics (excl. Formentera/Ibiza): permitted with Cross-Border coverage.",
+          "confidence": "MEDIUM",
+          "enriched_confidence": "HIGH",
+          "source_text": "the client can access, as long as they have contracted the 'Cross-Border' coverage: Andorra, France (Continental), Italy (Continental), Portugal (Continental) and territory of Gibraltar.",
+          "document_heading": "Border Crossing / Cross-Border / viajes fronterizos",
+          "annotation_note": "Most restrictive cross-border policy of the 3 suppliers. GPS enforcement explicitly stated — contract auto-terminated on violation. Goldcar may take remote legal action to recover vehicle.",
+          "validation_keywords": [
+            "andorra",
+            "5 countr",
+            "five countr",
+            "gps",
+            "formentera",
+            "cross-border coverage",
+            "cross border coverage"
+          ]
+        }
+      }
+    }
+  ]
+}
