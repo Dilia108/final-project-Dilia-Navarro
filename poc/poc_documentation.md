@@ -18,7 +18,7 @@ For each source the pipeline:
 7. Compares extraction against manually verified ground truth (with `--validate`)
 8. Outputs a single structured JSON record ready for API serving
 
-**Demo recording:** A screen recording of the POC running end-to-end is included separately.
+**Demo recording:** [Watch end-to-end POC demo (Loom)](https://www.loom.com/share/d09135f07ea847899d64e34682d6b8fe)
 
 ---
 
@@ -277,7 +277,7 @@ python poc/termsiq_poc.py --supplier Hertz --country DE --url "https://images.he
 
 ### TC-04 — Goldcar ES (JS-rendered page → local PDF fallback)
 ```powershell
-python poc/termsiq_poc.py --supplier Goldcar --country ES --url "https://www.goldcar.es/en-gb/terms-and-conditions/" --local-file "poc/TC - BCN - 2026-06-15T10_09_55Z.pdf" --validate
+python poc/termsiq_poc.py --supplier Goldcar --country ES --url "https://www.goldcar.es/en-gb/terms-and-conditions/" --local-file "poc/T&C samples/TC - BCN - 2026-06-15T10_09_55Z.pdf" --validate
 ```
 
 ### Debug mode — inspect preprocessed text sent to LLM
@@ -292,7 +292,7 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 
 ### Import n8n workflow
 1. Open n8n → **+** → **Import from file** → select `poc_workflow.json`
-2. Configure credentials: OpenAI API key, SMTP for review emails
+2. Configure credentials: OpenAI API key, SMTP for review emails (SMTP was deactivated for the demo)
 3. Update the **Fetch Supplier Document** node URL to your target supplier
 4. Click **Execute Workflow**
 
