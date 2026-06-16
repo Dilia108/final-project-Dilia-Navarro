@@ -2,7 +2,6 @@
 ## Intelligent Terms & Conditions Extraction for Car Rental Distribution
 
 **Project document — Use Case Definition & Market Feasibility Research**
-Prepared for: [Client name]
 Date: June 2026
 Version: 1.0
 

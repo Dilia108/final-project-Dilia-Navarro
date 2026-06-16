@@ -265,7 +265,7 @@ Model: GPT-4o-mini | Validation: against manually verified ground truth (`Annota
 | TC-03 | Hertz DE | PDF — 651KB, 20 pages | **5/5 (100%)** | PENDING_REVIEW | YES — grace period and licence correctly absent |
 | TC-04 | Goldcar ES | PDF local — 786KB, 20 pages | **5/5 (100%)** | APPROVED_AUTO | NO |
 
-**Overall: 20/20 fields (100%)** across 4 suppliers, 3 source types, 2 languages.
+**Overall: 20/20 fields (100%)** across 3 suppliers, 3 source types, 2 languages.
 
 The PENDING_REVIEW status on both Hertz test cases is correct behaviour — the pipeline surfaces genuine data gaps rather than fabricating values, and holds them for human review before going live.
 
