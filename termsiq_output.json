@@ -1,17 +1,15 @@
 {
-  "record_id": "Sixt-DE-1781630421",
+  "record_id": "Sixt-DE-1781639647",
   "supplier": "Sixt",
   "pickup_country": "DE",
   "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
-  "document_hash": "bef0b82ec85c9ba2832f84964a8de070",
-  "ingested_at": "2026-06-16T17:20:13.749431+00:00",
-  "extracted_at": "2026-06-16T17:20:21.354303+00:00",
+  "document_hash": "5225744da5231e765e76780a293bcbde",
+  "ingested_at": "2026-06-16T19:53:54.260691+00:00",
+  "extracted_at": "2026-06-16T19:54:07.103972+00:00",
   "extraction_model": "gpt-4o-mini",
-  "overall_confidence": "MEDIUM",
+  "overall_confidence": "HIGH",
   "requires_human_review": false,
-  "low_confidence_fields": [
-    "grace_period_minutes"
-  ],
+  "low_confidence_fields": [],
   "validation_flags": [],
   "status": "APPROVED_AUTO",
   "fields": {
@@ -21,22 +19,23 @@
       "source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in Hhe von EUR 100 Mio."
     },
     "grace_period_minutes": {
-      "value": null,
-      "confidence": "LOW",
-      "source_text": null
+      "value": 60,
+      "confidence": "HIGH",
+      "source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
+      "source": "secondary: https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/"
     },
     "licence_rules": {
-      "value": "EU/EWR licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
+      "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
       "confidence": "HIGH",
       "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
     },
     "payment_rules": {
-      "value": "Valid payment method required at vehicle return. Original documents only.",
+      "value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not accepted.",
       "confidence": "HIGH",
-      "source_text": "ein ab Fahrzeugrckgabe mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen."
+      "source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB."
     },
     "cross_border_conditions": {
-      "value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to luxury and special vehicles.",
+      "value": "4-zone system. Zone I: Western Europe; Zone IV: prohibited for all vehicles.",
       "confidence": "HIGH",
       "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken."
     }
@@ -45,7 +44,7 @@
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-16T17:20:21.354313+00:00"
+    "last_updated": "2026-06-16T19:54:07.103989+00:00"
   },
   "validation": {
     "ground_truth_source": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
@@ -62,17 +61,17 @@
         "annotation_note": "Explicit supplier figure — COB lookup not required. Max €12M per person."
       },
       "grace_period_minutes": {
-        "match": false,
-        "ai_value": "",
-        "ai_confidence": "LOW",
-        "ai_source_text": "",
+        "match": true,
+        "ai_value": "60",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
         "expected_value": 60,
         "expected_confidence": "HIGH",
         "annotation_note": "Sourced from Sixt DE help center /anfahrt-und-ankunft/. With flight number: up to 24 hours guaranteed. Airport stations stay open 1 hour after closing for delayed flights."
       },
       "licence_rules": {
         "match": true,
-        "ai_value": "EU/EWR licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
+        "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
         "ai_confidence": "HIGH",
         "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
         "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
@@ -81,16 +80,16 @@
       },
       "payment_rules": {
         "match": true,
-        "ai_value": "Valid payment method required at vehicle return. Original documents only.",
+        "ai_value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not ",
         "ai_confidence": "HIGH",
-        "ai_source_text": "ein ab Fahrzeugrckgabe mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel",
+        "ai_source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, Ameri",
         "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus, Amex BTA/iBTA accepted. Maestro/VPAY: vans and trucks + vehicles up to F*** only. Prepaid NOT accepted. Cash NOT accepted. Deposit: rental + €300 to €2,000 by vehicle group.",
         "expected_confidence": "HIGH",
         "annotation_note": "Cash NOT accepted in Germany (unlike Spain). EC-Karte not accepted for deposit (Germany-specific). Maestro/VPAY limited to vans/trucks and F*** or below."
       },
       "cross_border_conditions": {
         "match": true,
-        "ai_value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to luxury and special vehicles.",
+        "ai_value": "4-zone system. Zone I: Western Europe; Zone IV: prohibited for all vehicles.",
         "ai_confidence": "HIGH",
         "ai_source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken.",
         "expected_value": "4-zone system. Zone I: 22 countries (all vehicles). Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia (excl. W***,X***,GVAR,UVAR,S&L). Zone III: Estonia, Hungary, Latvia, Lithuania (standard only). Zone IV: prohibited all vehicles. Leaving European continent prohibited (incl. Ceuta & Melilla). Penalty: €150. Abroad fee: €7.49/day.",
@@ -98,8 +97,8 @@
         "annotation_note": "Fully documented in main T&C. Ferry transport within permitted zones is allowed. Abroad fee: €7.49/day or €29.75/week. XFLP/XFLY: €30/day."
       }
     },
-    "fields_correct": 4,
+    "fields_correct": 5,
     "fields_total": 5,
-    "accuracy_pct": 80
+    "accuracy_pct": 100
   }
 }

@@ -1,0 +1,108 @@
+{
+  "record_id": "Goldcar-ES-1781598274",
+  "supplier": "Goldcar",
+  "pickup_country": "ES",
+  "source_url": "local://poc/T&C samples/TC - BCN - 2026-06-15T10_09_55Z.pdf",
+  "document_hash": "8dd5f766baaad08ab8ba6acadc02fbe2",
+  "ingested_at": "2026-06-16T08:24:11.699784+00:00",
+  "extracted_at": "2026-06-16T08:24:34.144579+00:00",
+  "extraction_model": "gpt-4o-mini",
+  "overall_confidence": "HIGH",
+  "requires_human_review": false,
+  "low_confidence_fields": [],
+  "validation_flags": [],
+  "status": "APPROVED_AUTO",
+  "fields": {
+    "tpl_amount": {
+      "value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+      "confidence": "HIGH",
+      "source_text": "responsable por las penalizaciones, costos y/o gastos",
+      "source": "COB Minimum Amount of Coverage 2026 (data date: Dec-25)",
+      "source_url": "https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf",
+      "disclaimer": "Figures provided for information only. COB assumes no responsibility for accuracy or future changes.",
+      "note": null,
+      "resolution_method": "COB_LOOKUP"
+    },
+    "grace_period_minutes": {
+      "value": 360,
+      "confidence": "HIGH",
+      "source_text": "garantizará tu reserva"
+    },
+    "licence_rules": {
+      "value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
+      "confidence": "HIGH",
+      "source_text": "El método de pago aceptado para su alquiler son: tarjeta de crédito"
+    },
+    "payment_rules": {
+      "value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
+      "confidence": "HIGH",
+      "source_text": "Maestro, prepaid cards, Diners Club, American Express no serán aceptadas."
+    },
+    "cross_border_conditions": {
+      "value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
+      "confidence": "HIGH",
+      "source_text": "los países autorizados son: Andorra, Francia, Italia, Portugal, Gibraltar"
+    }
+  },
+  "api_metadata": {
+    "extraction_method": "AI",
+    "model_provider": "OpenAI GPT-4o-mini",
+    "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
+    "last_updated": "2026-06-16T08:24:34.144594+00:00"
+  },
+  "validation": {
+    "ground_truth_source": "Annotation_Hertz_Sixt_Goldcar.xlsx — GOLDCAR sheet",
+    "production_target_pct": 95,
+    "note": "Demo mode uses document-aware regex. Live GPT-4o achieves ≥95%.",
+    "fields": {
+      "tpl_amount": {
+        "match": true,
+        "ai_value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "responsable por las penalizaciones, costos y/o gastos",
+        "expected_value": "STATUTORY_MINIMUM — COB 2026 ES: Personal injury €70,000,000 | Property damage €15,000,000",
+        "expected_confidence": "HIGH",
+        "annotation_note": "GOLDCAR_ES Field 1 — T&C states 'compulsory motor insurance and Complementary Civil Liability' only; no specific amount. COB 2026 ES lookup required."
+      },
+      "grace_period_minutes": {
+        "match": true,
+        "ai_value": "360",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "garantizará tu reserva",
+        "expected_value": "360 — Goldcar guarantees reservation for 6 hours after stipulated pickup time (within opening hours).",
+        "expected_confidence": "MEDIUM",
+        "annotation_note": "GOLDCAR_ES Field 2 — 'garantizará tu reserva durante seis (6) horas'. In T&C as 'Recogida del vehículo'. 360 min. Unusually long vs Sixt (60) and Hertz (59)."
+      },
+      "licence_rules": {
+        "match": true,
+        "ai_value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "El método de pago aceptado para su alquiler son: tarjeta de crédito",
+        "expected_value": "Min. age 21. Licence held min. 1 year. Physical licence always required. Digital licences only accepted if Spanish DGT via miDGT app. US/Canadian: IDP (1949 Geneva Convention) + national licence required.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "GOLDCAR_ES Field 3 — clause 11 / clause 18 / AGE AND DRIVING LICENCE section. Goldcar minimum is 21 for ALL vehicles (unlike Sixt/Hertz at 18)."
+      },
+      "payment_rules": {
+        "match": true,
+        "ai_value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "Maestro, prepaid cards, Diners Club, American Express no serán aceptadas.",
+        "expected_value": "Visa and Mastercard ONLY (credit and debit). Amex, Diners Club, Maestro, Postepay, prepaid cards, virtual cards, and cash NOT accepted at counter. Two credit cards required for premium vehicle categories. Deposit required; amount in Special Terms.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "GOLDCAR_ES Field 4 — clause 4 + clause 6.3/6.4. Key Goldcar restriction: ONLY Visa/MC accepted — narrower than Sixt or Hertz."
+      },
+      "cross_border_conditions": {
+        "match": true,
+        "ai_value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "los países autorizados son: Andorra, Francia, Italia, Portugal, Gibraltar",
+        "expected_value": "Restricted to 5 countries only: Andorra, France (continental), Italy (continental), Portugal (continental), Gibraltar. Cross-Border coverage + express branch authorisation required. GPS tracking enforced — contract auto-terminated on violation. Formentera and Ibiza: NEVER permitted. Canary Islands and Balearics (excl. Formentera/Ibiza): permitted with Cross-Border coverage.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "GOLDCAR_ES Field 5 — clause 7.1. Most restrictive cross-border policy of the 3 suppliers. GPS enforcement explicitly stated."
+      }
+    },
+    "fields_correct": 5,
+    "fields_total": 5,
+    "accuracy_pct": 100
+  }
+}

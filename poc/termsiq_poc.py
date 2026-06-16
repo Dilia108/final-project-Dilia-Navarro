@@ -29,6 +29,70 @@ import textwrap
 from datetime import datetime, timezone
 
 # ---------------------------------------------------------------------------
+# LangSmith Tracing (optional — set LANGCHAIN_API_KEY to enable)
+# ---------------------------------------------------------------------------
+def _setup_langsmith() -> bool:
+    """
+    Configure LangSmith tracing if credentials are present.
+    Returns True if tracing is enabled, False otherwise.
+    Falls back gracefully — script works fine without LangSmith.
+
+    Required env vars:
+        LANGCHAIN_API_KEY      — your LangSmith API key
+        LANGCHAIN_PROJECT      — project name in LangSmith (default: TermsIQ-POC)
+        LANGCHAIN_TRACING_V2   — auto-set to "true" if API key found
+    """
+    api_key = os.environ.get("LANGCHAIN_API_KEY")
+    if not api_key:
+        return False
+    try:
+        from langsmith import Client
+        os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+        os.environ.setdefault("LANGCHAIN_PROJECT",    "TermsIQ-POC")
+        os.environ.setdefault("LANGCHAIN_ENDPOINT",   "https://eu.api.smith.langchain.com")
+        endpoint = os.environ["LANGCHAIN_ENDPOINT"]
+        project  = os.environ["LANGCHAIN_PROJECT"]
+        client   = Client(api_key=api_key, api_url=endpoint)
+
+        # Create the project if it does not yet exist
+        try:
+            client.create_project(project)
+            print(f"  ✓ LangSmith project created: {project}")
+        except Exception:
+            pass   # project already exists — that's fine
+
+        print(f"  ✓ LangSmith tracing enabled — project: {project} | endpoint: {endpoint}")
+        return True
+    except Exception as e:
+        print(f"  ⚠ LangSmith setup failed: {e} — continuing without tracing")
+        return False
+
+
+LANGSMITH_ENABLED = False   # set to True in main() if credentials present
+
+
+def _log_langsmith_feedback(supplier: str, country: str, tokens: int,
+                             confidence: str) -> None:
+    """Log extraction metadata as a LangSmith run feedback entry."""
+    if not LANGSMITH_ENABLED:
+        return
+    try:
+        import uuid
+        from langsmith import Client
+        client = Client(api_key=os.environ["LANGCHAIN_API_KEY"])
+        run_id = str(uuid.uuid4())
+        score  = {"HIGH": 1.0, "MEDIUM": 0.5, "LOW": 0.0}.get(confidence, 0.0)
+        client.create_feedback(
+            run_id  = run_id,
+            key     = "overall_confidence",
+            score   = score,
+            comment = f"{supplier}/{country} | {tokens} tokens",
+        )
+    except Exception:
+        pass   # tracing failures are never fatal
+
+
+# ---------------------------------------------------------------------------
 # COB 2026 Statutory Minimum Reference Table
 # Source: Council of Bureaux, April 2026 edition
 # Disclaimer: Figures for information only. COB assumes no responsibility.
@@ -355,8 +419,41 @@ def preprocess_text(text: str, max_chars: int = 10000) -> str:
     return cleaned[:max_chars]
 
 
+def _make_openai_call(client, messages: list, supplier: str, country: str) -> object:
+    """
+    Inner function that makes the OpenAI API call.
+    Decorated with @traceable so LangSmith sees it as a named run with
+    supplier/country metadata attached — even when wrap_openai is not used.
+    The @traceable decorator is applied conditionally at runtime.
+    Returns a tuple of (response, run_id) so the caller can attach feedback.
+    """
+    from langsmith import get_current_run_tree
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0,
+        max_tokens=1200,
+    )
+    # Capture the run_id while still inside the traceable context
+    run_tree = get_current_run_tree()
+    run_id   = str(run_tree.id) if run_tree else None
+    return response, run_id
+
+
 def extract_with_openai(text: str, supplier: str, country: str) -> dict:
-    """Call OpenAI GPT-4o to extract the 5 T&C fields."""
+    """
+    Call OpenAI GPT-4o-mini to extract the 5 T&C fields.
+
+    LangSmith tracing (when LANGCHAIN_API_KEY + LANGCHAIN_ENDPOINT are set):
+      - Each extraction appears as a named run: "termsiq_extraction"
+      - Run metadata: supplier, country, source_chars, model
+      - Child run: the raw OpenAI chat.completions call with full prompt/response
+      - Feedback score: overall_confidence (HIGH=1.0 / MEDIUM=0.5 / LOW=0.0)
+      - Tags: supplier name, country code, model name
+
+    EU endpoint (GDPR-compliant): https://eu.api.smith.langchain.com
+    Dashboard: https://eu.smith.langchain.com
+    """
     try:
         from openai import OpenAI
     except ImportError:
@@ -369,7 +466,30 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
         print("  Running in DEMO MODE — returning simulated extraction.\n")
         return _demo_extraction(supplier, country, text)
 
-    client = OpenAI(api_key=api_key)
+    # Build the OpenAI client — wrap with LangSmith if enabled
+    base_client = OpenAI(api_key=api_key)
+    if LANGSMITH_ENABLED:
+        try:
+            from langsmith.wrappers import wrap_openai
+            from langsmith import traceable
+            ls_client = wrap_openai(base_client)
+            # Apply @traceable at runtime so the parent run carries metadata
+            traced_call = traceable(
+                _make_openai_call,
+                name="termsiq_extraction",
+                run_type="llm",
+                tags=[f"supplier:{supplier}", f"country:{country}", "model:gpt-4o-mini"],
+                metadata={"supplier": supplier, "country": country,
+                           "source_chars": len(text), "model": "gpt-4o-mini"},
+            )
+        except Exception as e:
+            print(f"  ⚠ LangSmith wrap failed ({e}) — tracing disabled for this run")
+            ls_client   = base_client
+            traced_call = _make_openai_call
+    else:
+        ls_client   = base_client
+        traced_call = _make_openai_call
+
     print(f"  Calling GPT-4o-mini (temperature=0)...")
 
     # Trim document to 6,000 chars to stay well within token budget
@@ -417,19 +537,22 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
     #            user turn 1 = few-shot examples
     #            assistant turn 1 = acknowledged (keeps context clean)
     #            user turn 2 = actual extraction request
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system",    "content": system_prompt},
-            {"role": "user",      "content": "Here are two worked examples showing correct extraction:\n\n" + FEW_SHOT_EXAMPLES},
-            {"role": "assistant", "content": "Understood. I will follow these examples exactly, returning null with LOW confidence when a field is genuinely absent rather than inferring from unrelated sections."},
-            {"role": "user",      "content": EXTRACTION_PROMPT_USER.format(
-                supplier=supplier, country=country, text=doc_text
-            )},
-        ],
-        temperature=0,
-        max_tokens=1200,
-    )
+    messages = [
+        {"role": "system",    "content": system_prompt},
+        {"role": "user",      "content": "Here are two worked examples showing correct extraction:\n\n" + FEW_SHOT_EXAMPLES},
+        {"role": "assistant", "content": "Understood. I will follow these examples exactly, returning null with LOW confidence when a field is genuinely absent rather than inferring from unrelated sections."},
+        {"role": "user",      "content": EXTRACTION_PROMPT_USER.format(
+            supplier=supplier, country=country, text=doc_text
+        )},
+    ]
+    result  = traced_call(ls_client, messages, supplier, country)
+    # traced_call returns (response, run_id) when LangSmith is enabled,
+    # or just the response object when tracing is disabled
+    if LANGSMITH_ENABLED and isinstance(result, tuple):
+        response, ls_run_id = result
+    else:
+        response  = result
+        ls_run_id = None
 
     raw = response.choices[0].message.content.strip()
     # Strip markdown fences defensively
@@ -437,8 +560,44 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
 
     try:
         extracted = json.loads(raw)
-        tokens_used = response.usage.total_tokens if response.usage else "unknown"
+        tokens_used = response.usage.total_tokens if response.usage else 0
         print(f"  ✓ Extraction complete | Tokens used: {tokens_used}")
+        # Log confidence feedback to LangSmith
+        if LANGSMITH_ENABLED and ls_run_id:
+            try:
+                from langsmith import Client as LSClient
+                confs = []
+                for v in extracted.values():
+                    if not isinstance(v, dict):
+                        continue
+                    c   = v.get("confidence", "LOW")
+                    val = str(v.get("value", "")).upper()
+                    # STATUTORY_MINIMUM is a valid HIGH-confidence answer — don't penalise it
+                    if val == "STATUTORY_MINIMUM" and c in ("HIGH", "MEDIUM"):
+                        confs.append("HIGH")
+                    else:
+                        confs.append(c)
+                non_null = [c for c, v in zip(confs, extracted.values())
+                            if isinstance(v, dict) and v.get("value") is not None]
+                if not non_null:
+                    overall = "LOW"
+                elif all(c == "HIGH" for c in non_null): overall = "HIGH"
+                elif any(c == "LOW"  for c in non_null): overall = "LOW"
+                else:                                     overall = "MEDIUM"
+                score = {"HIGH": 1.0, "MEDIUM": 0.5, "LOW": 0.0}[overall]
+                ls = LSClient(
+                    api_key = os.environ["LANGCHAIN_API_KEY"],
+                    api_url = os.environ.get("LANGCHAIN_ENDPOINT", "https://eu.api.smith.langchain.com"),
+                )
+                ls.create_feedback(
+                    run_id  = ls_run_id,
+                    key     = "overall_confidence",
+                    score   = score,
+                    comment = f"{supplier}/{country} | {tokens_used} tokens | {overall}",
+                )
+                print(f"  ✓ LangSmith — logged confidence: {overall} ({score})")
+            except Exception as e:
+                print(f"  ⚠ LangSmith feedback failed: {e}")
         return extracted
     except json.JSONDecodeError as e:
         print(f"  ⚠ JSON parse error: {e}")
@@ -709,6 +868,10 @@ def main():
 
     if args.demo:
         os.environ.pop("OPENAI_API_KEY", None)  # force demo mode
+
+    # Initialise LangSmith tracing (silent no-op if LANGCHAIN_API_KEY not set)
+    global LANGSMITH_ENABLED
+    LANGSMITH_ENABLED = _setup_langsmith()
 
     banner(f"TermsIQ POC — {args.supplier} / {args.country}")
     ingested_at = datetime.now(timezone.utc).isoformat()

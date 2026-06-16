@@ -1,0 +1,194 @@
+{
+  "name": "TermsIQ — URL Validity Agent v2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule",
+      "name": "Schedule Trigger (Daily 08:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [180, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Build URL list from annotation_base.json\n// URLs are hardcoded here — update when annotation_base.json changes\n// To add a new supplier: add entries to the URLS array below\n\nconst URLS = [\n  // HERTZ_ES\n  { record:'HERTZ_ES', supplier:'Hertz', country:'ES', path:'sources.primary',        url:'https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf', fields:[] },\n  { record:'HERTZ_ES', supplier:'Hertz', country:'ES', path:'sources.secondary[0]',   url:'https://images.hertz.com/pdfs/RT_FULL_ES_ES.pdf', fields:[] },\n  { record:'HERTZ_ES', supplier:'Hertz', country:'ES', path:'sources.secondary[1]',   url:'https://www.hertz.es/rentacar/customersupport/index.jsp?targetPage=faq.jsp', fields:['grace_period_minutes','licence_rules'] },\n  { record:'HERTZ_ES', supplier:'Hertz', country:'ES', path:'sources.secondary[2]',   url:'https://hertz.my.site.com/care/articles/es/FAQ/Tarjetas-de-d%C3%A9bito-prepago-1491399187323?r=69&ui-knowledge-components-aura-actions.KnowledgeArticleVersionCreateDraftFromOnlineAction.createDraftFromOnlineArticle=1', fields:['payment_rules'] },\n  // HERTZ_DE\n  { record:'HERTZ_DE', supplier:'Hertz', country:'DE', path:'sources.primary',        url:'https://images.hertz.com/pdfs/RT_FULL_DE_EN.pdf', fields:[] },\n  { record:'HERTZ_DE', supplier:'Hertz', country:'DE', path:'sources.secondary[0]',   url:'https://www.hertz.de/p/fahrzeug-guide/buchen-sie-ihren-mietwagen', fields:['licence_rules'] },\n  { record:'HERTZ_DE', supplier:'Hertz', country:'DE', path:'sources.secondary[1]',   url:'https://hertz.my.site.com/care/articles/en_GB/FAQ/Debit-Cards-1491399193040', fields:['payment_rules'] },\n  // SIXT_ES\n  { record:'SIXT_ES',  supplier:'Sixt',  country:'ES', path:'sources.primary',        url:'https://www.sixt.es/php/terms/view?language=en_US&liso=ES&rtar=000&view=EPP&tlang=es_ES&style=typo3', fields:[] },\n  { record:'SIXT_ES',  supplier:'Sixt',  country:'ES', path:'sources.secondary[0]',   url:'https://www.sixt.es/help-center/sections/como-llegar-y-llegada/', fields:['grace_period_minutes'] },\n  { record:'SIXT_ES',  supplier:'Sixt',  country:'ES', path:'sources.secondary[1]',   url:'https://www.sixt.es/shared/t-c/sixt_ES_en.pdf', fields:['payment_rules','cross_border_conditions'] },\n  { record:'SIXT_ES',  supplier:'Sixt',  country:'ES', path:'sources.secondary[2]',   url:'https://www.sixt.es/help-center/articles/necesito-un-permiso-de-conducir-internacional-para-alquilar-con-sixt/', fields:['licence_rules'] },\n  // SIXT_DE\n  { record:'SIXT_DE',  supplier:'Sixt',  country:'DE', path:'sources.primary',        url:'https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3', fields:[] },\n  { record:'SIXT_DE',  supplier:'Sixt',  country:'DE', path:'sources.secondary[0]',   url:'https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/', fields:['grace_period_minutes'] },\n  { record:'SIXT_DE',  supplier:'Sixt',  country:'DE', path:'sources.secondary[1]',   url:'https://www.sixt.de/help-center/articles/welchen-fuehrerschein-brauche-ich-fuer-eine-anmietung-bei-sixt-in-deutschland/', fields:['licence_rules'] },\n  { record:'SIXT_DE',  supplier:'Sixt',  country:'DE', path:'sources.secondary[2]',   url:'https://www.sixt.de/pages/mietinformationen/', fields:['payment_rules'] },\n  // GOLDCAR_ES\n  { record:'GOLDCAR_ES', supplier:'Goldcar', country:'ES', path:'sources.primary',      url:'https://www.goldcar.es/en-gb/terms-and-conditions/', fields:[] },\n  { record:'GOLDCAR_ES', supplier:'Goldcar', country:'ES', path:'sources.secondary[0]', url:'https://www.goldcarhelp.com/faqs/319-puedo-recoger-el-vehiculo-fuera-del-horario-de-apertura-de-la-oficina', fields:['grace_period_minutes'] },\n  { record:'GOLDCAR_ES', supplier:'Goldcar', country:'ES', path:'sources.secondary[1]', url:'https://www.goldcarhelp.com/faqs/227-que-permisos-de-conducir-aceptamos', fields:['licence_rules'] },\n  { record:'GOLDCAR_ES', supplier:'Goldcar', country:'ES', path:'sources.secondary[2]', url:'https://www.goldcarhelp.com/faqs/320-metodos-de-pago', fields:['payment_rules'] },\n  { record:'GOLDCAR_ES', supplier:'Goldcar', country:'ES', path:'sources.secondary[3]', url:'https://gcdata-documents.s3.amazonaws.com/APPENDIX%20-%20EN%20-%20Insurance%20and%20additional%20covers%20-%20Feb%202026%20%281%29.docx.pdf', fields:['tpl_amount'] },\n];\n\n// Return each URL as a separate item for the HTTP Request node\nreturn URLS.map(u => ({ json: { ...u, runTimestamp: new Date().toISOString() } }));"
+      },
+      "id": "node-build-list",
+      "name": "Build URL List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "TermsIQ-URLAgent/1.0"
+            }
+          ]
+        }
+      },
+      "id": "node-http-check",
+      "name": "Check URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [620, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// Classify the HTTP response into a status\nconst JS_RENDER_THRESHOLD = 5000;\n\nconst meta  = $input.item.json;          // url metadata from Build URL List\nconst resp  = meta.statusCode !== undefined ? meta : {};\n\n// n8n HTTP Request with fullResponse=true puts status in statusCode\nconst statusCode  = meta.statusCode || 0;\nconst headers     = meta.headers     || {};\nconst body        = typeof meta.body === 'string' ? meta.body : JSON.stringify(meta.body || '');\nconst contentType = headers['content-type'] || headers['Content-Type'] || '';\nconst location    = headers['location']     || headers['Location']     || '';\n\nlet status, note, redirectUrl = null;\n\nif (statusCode === 0) {\n  status = 'TIMEOUT';\n  note   = 'No response — connection failed or timed out';\n} else if (statusCode === 404) {\n  status = 'NOT_FOUND';\n  note   = 'HTTP 404 — URL no longer exists';\n} else if (statusCode === 403) {\n  status = 'BLOCKED';\n  note   = 'HTTP 403 — server blocks bots, URL likely valid';\n} else if (statusCode >= 300 && statusCode < 400 && location) {\n  status      = 'REDIRECT';\n  redirectUrl = location;\n  note        = `Redirected to: ${location}`;\n} else if (statusCode >= 400) {\n  status = 'ERROR';\n  note   = `HTTP ${statusCode}`;\n} else if (contentType.includes('text/html')) {\n  const textOnly = body.replace(/<[^>]+>/g,' ').replace(/\\s+/g,' ').trim();\n  if (textOnly.length < JS_RENDER_THRESHOLD) {\n    status = 'JS_RENDERED';\n    note   = `Only ${textOnly.length} chars extracted — likely JS-rendered`;\n  } else {\n    status = 'OK';\n    note   = `${body.length.toLocaleString()} bytes | ${contentType.split(';')[0].trim()}`;\n  }\n} else {\n  status = 'OK';\n  note   = `${body.length.toLocaleString()} bytes | ${contentType.split(';')[0].trim()}`;\n}\n\nconst ACTION_STATUSES = new Set(['NOT_FOUND','JS_RENDERED','REDIRECT','TIMEOUT','ERROR']);\n\nreturn {\n  json: {\n    record:        meta.record,\n    supplier:      meta.supplier,\n    country:       meta.country,\n    path:          meta.path,\n    url:           meta.url,\n    fieldsCovered: meta.fields || [],\n    runTimestamp:  meta.runTimestamp,\n    status,\n    statusCode,\n    note,\n    redirectUrl,\n    isIssue: ACTION_STATUSES.has(status),\n  }\n};"
+      },
+      "id": "node-classify",
+      "name": "Classify Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Aggregate all URL check results\nconst items      = $input.all();\nconst allResults = items.map(i => i.json);\nconst issues     = allResults.filter(r => r.isIssue);\n\nconst runTimestamp = allResults[0]?.runTimestamp || new Date().toISOString();\nconst runDate      = runTimestamp.split('T')[0];\n\nconst totalChecked = allResults.filter(r => r.status !== 'SKIP').length;\nconst totalOk      = allResults.filter(r => r.status === 'OK').length;\nconst totalBlocked = allResults.filter(r => r.status === 'BLOCKED').length;\nconst totalSkipped = allResults.filter(r => r.status === 'SKIP').length;\n\nconsole.log(`[TermsIQ URL Agent] ${runDate} — Checked: ${totalChecked} | OK: ${totalOk} | Issues: ${issues.length}`);\n\nreturn [{ json: {\n  runTimestamp, runDate,\n  totalChecked, totalOk, totalBlocked, totalSkipped,\n  issuesCount: issues.length,\n  issues,\n  allResults,\n  exitCode: issues.length > 0 ? 1 : 0,\n}}];"
+      },
+      "id": "node-aggregate",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-exitcode",
+              "leftValue": "={{ $json.exitCode }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-check-issues",
+      "name": "Issues Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1280, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const data   = $input.first().json;\nconst issues = data.issues || [];\n\nconst statusColors = { 'NOT_FOUND':'#dc2626','JS_RENDERED':'#d97706','REDIRECT':'#2563eb','TIMEOUT':'#7c3aed','ERROR':'#dc2626' };\nconst actionGuide  = {\n  'NOT_FOUND':   'URL deleted. Find replacement and update annotation_base.json + Build URL List node.',\n  'JS_RENDERED': 'Page now JS-rendered. Add or update PDF fallback URL.',\n  'REDIRECT':    'URL moved. Update annotation_base.json and Build URL List node with new URL.',\n  'TIMEOUT':     'Server slow. Retry manually before taking action.',\n  'ERROR':       'Unexpected error. Check URL manually.',\n};\n\nlet rows = '';\nfor (const issue of issues) {\n  const color  = statusColors[issue.status] || '#374151';\n  const action = actionGuide[issue.status]  || 'Check manually.';\n  const fields = issue.fieldsCovered?.length ? `<br><small style=\"color:#6b7280\">Fields: ${issue.fieldsCovered.join(', ')}</small>` : '';\n  rows += `<tr>\n    <td style=\"padding:8px;border:1px solid #e5e7eb;font-weight:bold\">${issue.record}</td>\n    <td style=\"padding:8px;border:1px solid #e5e7eb;color:${color};font-weight:bold\">${issue.status}</td>\n    <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:11px;word-break:break-all\">${issue.url}${fields}</td>\n    <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:12px\">${issue.note}</td>\n    <td style=\"padding:8px;border:1px solid #e5e7eb;font-size:12px\">${action}</td>\n  </tr>`;\n}\n\nconst html = `<html><body style=\"font-family:Arial,sans-serif;color:#111827;max-width:950px;margin:0 auto\">\n<h2 style=\"color:#dc2626\">⚠ TermsIQ URL Agent — Action Required</h2>\n<p><strong>${issues.length} issue(s)</strong> on ${data.runDate} | Checked: ${data.totalChecked} | OK: ${data.totalOk} | Blocked (403): ${data.totalBlocked} | Skipped: ${data.totalSkipped}</p>\n<table style=\"border-collapse:collapse;width:100%;font-size:13px\">\n<thead><tr style=\"background:#f3f4f6\">\n  <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Record</th>\n  <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Status</th>\n  <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">URL</th>\n  <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Note</th>\n  <th style=\"padding:8px;border:1px solid #e5e7eb;text-align:left\">Action</th>\n</tr></thead>\n<tbody>${rows}</tbody>\n</table>\n<h3>Next steps</h3>\n<ol>\n  <li>Update the URL in <code>annotation_base.json</code></li>\n  <li>Update the URL in the <strong>Build URL List</strong> node in this workflow</li>\n  <li>Re-run <code>python poc/Annotations/url_agent.py</code> to confirm the fix</li>\n</ol>\n<p style=\"color:#6b7280;font-size:12px\">— TermsIQ URL Agent | ${data.runTimestamp}</p>\n</body></html>`;\n\nreturn [{ json: { ...data, emailHtml: html,\n  emailSubject: `⚠ TermsIQ URL Agent — ${issues.length} issue(s) — ${data.runDate}` } }];"
+      },
+      "id": "node-build-email",
+      "name": "Build Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 420]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.TERMSIQ_SMTP_USER }}",
+        "toEmail": "={{ $env.TERMSIQ_NOTIFY_TO }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailFormat": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {}
+      },
+      "id": "node-send-email",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1720, 420],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-termsiq",
+          "name": "TermsIQ SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $input.first().json;\nconsole.log(`[TermsIQ URL Agent] ${d.runDate} — All OK. Checked: ${d.totalChecked} | OK: ${d.totalOk} | Blocked: ${d.totalBlocked} | Skipped: ${d.totalSkipped}`);\nreturn [{ json: { status: 'ALL_OK', ...d } }];"
+      },
+      "id": "node-log-ok",
+      "name": "Log — All OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 180]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily 08:00)": {
+      "main": [[{ "node": "Build URL List", "type": "main", "index": 0 }]]
+    },
+    "Build URL List": {
+      "main": [[{ "node": "Check URL", "type": "main", "index": 0 }]]
+    },
+    "Check URL": {
+      "main": [[{ "node": "Classify Result", "type": "main", "index": 0 }]]
+    },
+    "Classify Result": {
+      "main": [[{ "node": "Aggregate Results", "type": "main", "index": 0 }]]
+    },
+    "Aggregate Results": {
+      "main": [[{ "node": "Issues Found?", "type": "main", "index": 0 }]]
+    },
+    "Issues Found?": {
+      "main": [
+        [{ "node": "Log — All OK",  "type": "main", "index": 0 }],
+        [{ "node": "Build Email",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Email": {
+      "main": [[{ "node": "Send Alert Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": ["TermsIQ", "monitoring", "url-agent"],
+  "meta": { "instanceId": "termsiq-poc" }
+}
