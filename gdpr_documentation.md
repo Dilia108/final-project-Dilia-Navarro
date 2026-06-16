@@ -266,7 +266,7 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 
 ---
 
-### 5.4 Council of Bureaux (COB) — reference data only
+### 5.3 Council of Bureaux (COB) — reference data only
 
 | Attribute | Detail |
 |---|---|

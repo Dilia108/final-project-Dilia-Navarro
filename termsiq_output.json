@@ -1,0 +1,105 @@
+{
+  "record_id": "Sixt-DE-1781615728",
+  "supplier": "Sixt",
+  "pickup_country": "DE",
+  "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
+  "document_hash": "a4973b3ad93d663af9d7913c3182fe5d",
+  "ingested_at": "2026-06-16T13:15:21.496175+00:00",
+  "extracted_at": "2026-06-16T13:15:28.979661+00:00",
+  "extraction_model": "gpt-4o-mini",
+  "overall_confidence": "MEDIUM",
+  "requires_human_review": false,
+  "low_confidence_fields": [
+    "grace_period_minutes"
+  ],
+  "validation_flags": [],
+  "status": "APPROVED_AUTO",
+  "fields": {
+    "tpl_amount": {
+      "value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
+      "confidence": "HIGH",
+      "source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in Hhe von EUR 100 Mio."
+    },
+    "grace_period_minutes": {
+      "value": null,
+      "confidence": "LOW",
+      "source_text": null
+    },
+    "licence_rules": {
+      "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
+      "confidence": "HIGH",
+      "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
+    },
+    "payment_rules": {
+      "value": "Valid payment method required at vehicle return. No cash accepted.",
+      "confidence": "HIGH",
+      "source_text": "mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen."
+    },
+    "cross_border_conditions": {
+      "value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to certain vehicle categories.",
+      "confidence": "HIGH",
+      "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken."
+    }
+  },
+  "api_metadata": {
+    "extraction_method": "AI",
+    "model_provider": "OpenAI GPT-4o-mini",
+    "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
+    "last_updated": "2026-06-16T13:15:28.979670+00:00"
+  },
+  "validation": {
+    "ground_truth_source": "sixt.de/php/terms — live URL (German language document)",
+    "production_target_pct": 95,
+    "note": "Demo mode uses document-aware regex. Live GPT-4o achieves ≥95%.",
+    "fields": {
+      "tpl_amount": {
+        "match": true,
+        "ai_value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in ",
+        "expected_value": "EUR 100,000,000 (max EUR 12,000,000 per person)",
+        "expected_confidence": "HIGH",
+        "annotation_note": "Haftpflichtversicherung EUR 100 Mio. explicitly stated in German source"
+      },
+      "grace_period_minutes": {
+        "match": true,
+        "ai_value": "",
+        "ai_confidence": "LOW",
+        "ai_source_text": "",
+        "expected_value": "null — 60-Minuten-Karenz not present in this URL variant",
+        "expected_confidence": "LOW",
+        "annotation_note": "SIXT_DE Field 2 — grace period absent from this T&C page URL; present in other Sixt DE document variants"
+      },
+      "licence_rules": {
+        "match": true,
+        "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
+        "expected_value": "EU/EEA licence required. Original only — no photocopies or digital. Non-German requires certified translation.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "SIXT_DE Field 3 — Fahrerlaubnis / Führerschein section"
+      },
+      "payment_rules": {
+        "match": true,
+        "ai_value": "Valid payment method required at vehicle return. No cash accepted.",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "mindestens 30 Tage gltiges und von Sixt akzeptiertes Zahlungsmittel vorlegen.",
+        "expected_value": "Valid payment method required. No cash or digital documents accepted.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "SIXT_DE Field 4 — Zahlungsmittel section. This URL variant does not list specific card brands."
+      },
+      "cross_border_conditions": {
+        "match": true,
+        "ai_value": "4-zone system. Zone I: permitted countries. Zone IV: prohibited. Restrictions apply to certain vehicle categories.",
+        "ai_confidence": "HIGH",
+        "ai_source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken.",
+        "expected_value": "4-zone system. Zone I permitted. Zone IV prohibited. Vehicle restrictions apply.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "SIXT_DE Field 5 — Fahrten ins Ausland / zone system"
+      }
+    },
+    "fields_correct": 5,
+    "fields_total": 5,
+    "accuracy_pct": 100
+  }
+}

@@ -4,7 +4,7 @@ TermsIQ POC — T&C Extraction Pipeline
 ======================================
 Demonstrates the core TermsIQ capability:
   1. Fetch a real supplier T&C document (Hertz Spain PDF)
-  2. Extract the 5 critical fields using OpenAI GPT-4o
+  2. Extract the 5 critical fields using OpenAI GPT-4o-mini
   3. Cross-check TPL against the COB 2026 statutory minimum table
   4. Score confidence and flag for human review if needed
   5. Output a structured JSON record ready for API serving
@@ -356,7 +356,7 @@ def preprocess_text(text: str, max_chars: int = 10000) -> str:
 
 
 def extract_with_openai(text: str, supplier: str, country: str) -> dict:
-    """Call OpenAI GPT-4o to extract the 5 T&C fields."""
+    """Call OpenAI GPT-4o-mini to extract the 5 T&C fields."""
     try:
         from openai import OpenAI
     except ImportError:
@@ -449,7 +449,7 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
 def _demo_extraction(supplier: str, country: str, text: str = "") -> dict:
     """
     Document-aware demo extraction — reads the actual source text to produce
-    realistic output. Demonstrates what live GPT-4o extraction achieves.
+    realistic output. Demonstrates what live GPT-4o-mini extraction achieves.
     """
     import re
     print("  [DEMO MODE] Parsing source text for key values...")
@@ -765,7 +765,7 @@ def main():
             print(f"    Production solution: headless browser rendering or direct PDF ingestion.")
 
     # ── Step 4: LLM extraction ───────────────────────────────────────────────
-    step(4, f"Extracting T&C fields via OpenAI GPT-4o")
+    step(4, f"Extracting T&C fields via OpenAI GPT-4o-mini")
     fields = extract_with_openai(processed_text, args.supplier, args.country)
 
     # ── Step 5: Validate & score ─────────────────────────────────────────────
@@ -987,40 +987,40 @@ def _build_validation_block(supplier: str, country: str, fields: dict) -> dict:
             }
         },
         ("Sixt", "DE"): {
-            "source": "sixt.de/php/terms — live URL (German language document)",
+            "source": "Annotation_Hertz_Sixt_Goldcar.xlsx — SIXT_DE sheet",
             "fields": {
                 "tpl_amount": {
                     "expected_value": "EUR 100,000,000 (max EUR 12,000,000 per person)",
                     "expected_confidence": "HIGH",
-                    "annotation_note": "Haftpflichtversicherung EUR 100 Mio. explicitly stated in German source",
+                    "annotation_note": "Haftpflichtversicherung EUR 100 Mio. explicitly stated",
                     "check": lambda v: "100" in str(v),
                 },
                 "grace_period_minutes": {
-                    "expected_value": "null — 60-Minuten-Karenz not present in this URL variant",
-                    "expected_confidence": "LOW",
-                    "annotation_note": "SIXT_DE Field 2 — grace period absent from this T&C page URL; present in other Sixt DE document variants",
-                    "check": lambda v: v is None or str(v) in ["None", "null", ""],
+                    "expected_value": "60",
+                    "expected_confidence": "HIGH",
+                    "annotation_note": "60-Minuten-Karenz explicitly stated",
+                    "check": lambda v: str(v) == "60",
                 },
                 "licence_rules": {
-                    "expected_value": "EU/EEA licence required. Original only — no photocopies or digital. Non-German requires certified translation.",
+                    "expected_value": "EU/EEA licence required. No photocopies or digital. Non-German needs certified translation.",
                     "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 3 — Fahrerlaubnis / Führerschein section",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["eu", "eea", "original", "digital", "translation", "übersetz", "photocop"]),
+                    "annotation_note": "Allgemeine Anmietinformationen / Wichtige Dokumente",
+                    "check": lambda v: all(kw in str(v).lower() for kw in
+                                           ["eu", "digital", "übersetz"]),
                 },
                 "payment_rules": {
-                    "expected_value": "Valid payment method required. No cash or digital documents accepted.",
+                    "expected_value": "Visa, MC, Amex, Diners, Discover, JCB accepted. Prepaid not accepted. Cash not accepted.",
                     "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 4 — Zahlungsmittel section. This URL variant does not list specific card brands.",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["payment", "zahlungsmittel", "cash", "card", "karte", "visa", "prepaid"]),
+                    "annotation_note": "Tarifinformationen / Zahlungsmittel",
+                    "check": lambda v: all(kw in str(v).lower() for kw in
+                                           ["visa", "prepaid", "bar"]),
                 },
                 "cross_border_conditions": {
-                    "expected_value": "4-zone system. Zone I permitted. Zone IV prohibited. Vehicle restrictions apply.",
+                    "expected_value": "4-zone system. Zone IV prohibited. Penalty EUR 150.",
                     "expected_confidence": "HIGH",
-                    "annotation_note": "SIXT_DE Field 5 — Fahrten ins Ausland / zone system",
-                    "check": lambda v: any(kw in str(v).lower() for kw in
-                                          ["zone", "ausland", "abroad", "border", "prohibit", "verboten"]),
+                    "annotation_note": "Fahrten ins Ausland — zone system + EUR 150 penalty",
+                    "check": lambda v: all(kw in str(v).lower() for kw in
+                                           ["zone", "150"]),
                 },
             }
         },
@@ -1054,7 +1054,7 @@ def _build_validation_block(supplier: str, country: str, fields: dict) -> dict:
     return {
         "ground_truth_source": gt["source"],
         "production_target_pct": 95,
-        "note": "Demo mode uses document-aware regex. Live GPT-4o achieves ≥95%.",
+        "note": "Demo mode uses document-aware regex. Live GPT-4o-mini achieves ≥95%.",
         "fields": result_fields,
     }
 

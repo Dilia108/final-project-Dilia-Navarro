@@ -68,7 +68,7 @@ Limited risk applies to AI systems that interact with humans in ways where trans
 - Emotion recognition systems
 - **Systems that generate or manipulate content that could be mistaken for human-generated output**
 
-TermsIQ uses an LLM (OpenAI GPT-4o via Azure Germany North) to read and extract content from documents. The outputs are structured JSON data fields served via API — not text presented to consumers as if written by a human. However, the system:
+TermsIQ uses an LLM (OpenAI GPT-4o-mini via Azure Germany North) to read and extract content from documents. The outputs are structured JSON data fields served via API — not text presented to consumers as if written by a human. However, the system:
 
 1. Uses generative AI models to produce structured outputs
 2. Serves those outputs through a chain that ultimately reaches consumer-facing booking interfaces
@@ -96,8 +96,8 @@ Minimal risk systems (spam filters, AI in video games, etc.) have no mandatory o
 |---|---|
 | **Future scope expansion** | If TermsIQ is extended to make individualised recommendations (e.g. "this customer's licence will be rejected at this supplier") it would require reclassification and likely High Risk assessment |
 | **EU AI Act evolution** | The Act's implementing acts and guidelines are still being published as of June 2026. This classification should be reviewed against any new guidance on LLM-based extraction systems |
-| **OTA partner obligations** | OTA partners consuming TermsIQ data via API and displaying it to consumers may have their own transparency obligations under Article 50. The aggregator should include guidance on this in OTA partner contracts |
-| **GPAI model obligations** | OpenAI GPT-4o is a General Purpose AI (GPAI) model subject to its own obligations under the EU AI Act (Articles 51–56). The aggregator's obligation is to use a compliant GPAI provider — which OpenAI via Azure represents |
+| **OTA partner obligations** | OTA partners consuming TermsIQ data via API and displaying it to consumers may have their own transparency obligations under Article 50. The aggregator should include guidance on this in OTA partner contracts. TermsIQ is B2B2C by design, the COB disclaimer is a direct consequence of that indirect consumer exposure, and OTA partners consuming the API inherit a transparency obligation toward end consumers under Article 50(4).  |
+| **GPAI model obligations** | OpenAI GPT-4o-mini is a General Purpose AI (GPAI) model subject to its own obligations under the EU AI Act (Articles 51–56). The aggregator's obligation is to use a compliant GPAI provider — which OpenAI via Azure represents |
 
 ---
 
@@ -179,7 +179,7 @@ Although not mandatory under Limited Risk classification, TermsIQ implements the
 
 TermsIQ is an AI-powered document intelligence pipeline operated by a car rental API aggregator headquartered in Germany. The system automatically extracts structured, machine-readable terms and conditions data from unstructured supplier source documents — including PDFs, Excel files, XML feeds, and web pages — in any language, and serves the extracted data through the aggregator's existing B2B API infrastructure to downstream booking channel partners (OTAs, airline ancillary platforms, travel management companies).
 
-The system uses a large language model (OpenAI GPT-4o via Azure Germany North) to read supplier documents and extract five critical data fields: third-party liability (TPL) coverage amounts, vehicle pickup grace periods, driver licence type acceptance rules, payment method acceptance rules, and cross-border rental conditions. For TPL, the system cross-references statutory minimum amounts from the Council of Bureaux (COB) Minimum Amount of Coverage reference document where supplier documents reference statutory minimums rather than explicit figures.
+The system uses a large language model (OpenAI GPT-4o-mini via Azure Germany North) to read supplier documents and extract five critical data fields: third-party liability (TPL) coverage amounts, vehicle pickup grace periods, driver licence type acceptance rules, payment method acceptance rules, and cross-border rental conditions. For TPL, the system cross-references statutory minimum amounts from the Council of Bureaux (COB) Minimum Amount of Coverage reference document where supplier documents reference statutory minimums rather than explicit figures.
 
 A key risk inherent to this system is **the downstream impact of incorrect AI extraction on end customers**. Extracted T&C data is displayed at the point of booking by OTA partners. A customer who acts on incorrect information — arriving at the counter with an unaccepted payment card, an unaccepted licence, or without cross-border authorisation — has no recourse once the rental contract is refused. This risk is addressed through mandatory confidence thresholds, human review gates, and a "serve nothing rather than serve wrong" fallback policy (see Section 2.3 and 2.5).
 
@@ -240,12 +240,12 @@ The following table of contents represents the full technical documentation pack
 **2. System Architecture**
 - 2.1 High-level architecture diagram *(MVP)*
 - 2.2 Pipeline stage descriptions (Ingest → Extract → Validate → Store → Serve)
-- 2.3 LLM provider integration (OpenAI GPT-4o via Azure Germany North)
+- 2.3 LLM provider integration (OpenAI GPT-4o-mini via Azure Germany North)
 - 2.4 Infrastructure stack (FastAPI, PostgreSQL, Qdrant, cloud provider, region)
 - 2.6 API response schema and field definitions
 
 **3. AI Model Information**
-- 3.1 Models used (GPT-4o, Claude Sonnet) and provider details
+- 3.1 Models used (GPT-4o-mini) and provider details
 - 3.2 GPAI model cards / provider documentation references
 - 3.3 Prompt design and extraction schema (system prompt, field definitions, few-shot examples)
 - 3.4 Confidence scoring methodology
