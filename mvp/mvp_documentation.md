@@ -80,8 +80,8 @@ pip install pypdf openai
 $env:OPENAI_API_KEY = "sk-your-key-here"
 $env:PYTHONIOENCODING = "utf-8"
 
-# Optional — enables LangSmith tracing of every extraction call
-$env:LANGCHAIN_API_KEY = "your-langsmith-key"
+# Enables LangSmith tracing of every extraction call
+$env:LANGSMITH_API_KEY = "your-langsmith-key"
 ```
 
 Expected file layout:

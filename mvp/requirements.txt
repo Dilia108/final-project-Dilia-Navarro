@@ -1,0 +1,12 @@
+# TermsIQ — Python dependencies
+#
+# Core pipeline (termsiq_mvp.py):
+openai>=1.0
+pypdf>=4.0
+
+# Gradio UI (gradio_app.py):
+gradio>=5.0
+
+# Optional — enables LangSmith tracing if LANGSMITH_API_KEY is set in your
+# environment; the pipeline runs fine without it (silent no-op otherwise).
+langsmith>=0.1

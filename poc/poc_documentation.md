@@ -308,6 +308,7 @@ pip install pypdf openai
 ```powershell
 $env:OPENAI_API_KEY = "sk-your-key-here"
 $env:PYTHONIOENCODING = "utf-8"
+$env:LANGCHAIN_API_KEY = "ls__your_key_here" 
 ```
 
 ### TC-01 — Hertz ES (PDF)
@@ -357,10 +358,11 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 | `termsiq_poc.py` | Standalone Python script — PDF, web, and JS-rendered page source types |
 | `sample_tc.txt` | Sample T&C text file for demo mode (Hertz ES simplified) |
 | `termsiq_output.json` | Sample output from live run with `--validate` block embedded |
-| `Annotation_Hertz_Sixt_Goldcar.xlsx` | Manually verified ground truth for all 4 test cases |
-| `TC - BCN - 2026-06-15T10_09_55Z.pdf` | Goldcar ES T&C PDF (local — requires session-authenticated download) |
+| `Annotation_Hertz_Sixt_Goldcar.xlsx` | Manually verified ground truth for all 4 test cases. Located in the Annotations folder |
+| `TC - BCN - 2026-06-15T10_09_55Z.pdf` | Goldcar ES T&C PDF (local — requires session-authenticated download). Located in the T&C samples folder |
 | `poc_documentation.md` | This file |
-
+| `DEMO_POC_workflow.mp4` | Demo of the n8n poc_workflow |
+| `poc_terminal_output.md` | Terminal output obtained for the 5 suppliers |
 ---
 
 *TermsIQ POC Documentation — Version 1.4 — June 2026*

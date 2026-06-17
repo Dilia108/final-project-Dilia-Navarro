@@ -1027,6 +1027,227 @@ def print_record_summary(record: dict):
             print(f"  [{s['role']}] {s['url']}{filled}")
 
 
+def run_extraction(
+    supplier: str,
+    country: str,
+    url: str | None = None,
+    local_file: str | None = None,
+    pdf_url: str | None = None,
+    secondary_urls: list[str] | None = None,
+    no_auto_sources: bool = False,
+    validate: bool = True,
+    demo: bool = False,
+    annotation_path: str | None = None,
+    debug_text: bool = False,
+    progress_callback=None,
+) -> dict:
+    """
+    Runs the full TermsIQ extraction pipeline and returns the final API-ready
+    record. This is the single orchestration function used by both the CLI
+    (main(), below) and the Gradio UI (gradio_app.py) — keeping the pipeline
+    logic in exactly one place so the two interfaces can't drift out of sync
+    with each other.
+
+    This function has no side effects other than network/API calls — it does
+    not print or write files. Callers handle their own output/display.
+
+    progress_callback, if given, is called as progress_callback(step_label, message)
+    at each major step, so a caller can show live status (CLI prints, a Gradio
+    progress bar, etc.) without this function needing to know which.
+    """
+    def _notify(step_label, message):
+        if progress_callback:
+            progress_callback(step_label, message)
+
+    if demo:
+        os.environ.pop("OPENAI_API_KEY", None)  # force demo mode
+
+    global LANGSMITH_ENABLED
+    LANGSMITH_ENABLED = _setup_langsmith()
+
+    ingested_at = datetime.now(timezone.utc).isoformat()
+
+    # ── Step 1: Fetch or load document ──────────────────────────────────────
+    if local_file:
+        _notify(1, f"Loading local file: {local_file}")
+        with open(local_file, "rb") as f:
+            doc_bytes = f.read()
+        source_url = f"local://{local_file}"
+        _notify(1, f"Loaded {len(doc_bytes):,} bytes")
+    else:
+        _notify(1, f"Fetching document: {url}")
+        doc_bytes, _ = fetch_document(url)
+        source_url = url
+
+    # ── Step 2: Extract text ─────────────────────────────────────────────────
+    _notify(2, "Extracting text from document")
+    raw_text = extract_text_from_pdf(doc_bytes)
+    doc_hash = hash_document(doc_bytes)
+    _notify(2, f"Document hash (MD5): {doc_hash}")
+
+    # ── Step 3: Pre-process ──────────────────────────────────────────────────
+    _notify(3, "Pre-processing text for LLM submission")
+    processed_text = preprocess_text(raw_text, max_chars=10000)
+    _notify(3, f"Processed text: {len(processed_text):,} characters")
+    if debug_text:
+        print("\n" + "=" * 60)
+        print("  DEBUG: PREPROCESSED TEXT SENT TO LLM")
+        print("=" * 60)
+        print(processed_text)
+        print("=" * 60 + "\n")
+
+    # JS-rendered page detection: if processed text is suspiciously short after
+    # fetching a web page, the HTML was a JS shell with no content.
+    # Automatically fall back to pdf_url if provided.
+    JS_RENDER_THRESHOLD = 5000  # chars — below this from a web page = likely JS shell
+    is_web = url and not url.lower().endswith(".pdf")
+    if is_web and len(processed_text) < JS_RENDER_THRESHOLD:
+        _notify("3b", f"Only {len(processed_text):,} chars extracted from web page — "
+                       f"page is likely JS-rendered (content loads client-side).")
+        if pdf_url:
+            _notify("3b", f"Falling back to PDF: {pdf_url}")
+            if pdf_url.startswith("http"):
+                pdf_bytes, _ = fetch_document(pdf_url)
+            else:
+                with open(pdf_url, "rb") as f:
+                    pdf_bytes = f.read()
+                _notify("3b", f"Loaded local PDF: {len(pdf_bytes):,} bytes")
+            source_url = pdf_url
+            doc_hash = hash_document(pdf_bytes)
+            raw_text = extract_text_from_pdf(pdf_bytes)
+            processed_text = preprocess_text(raw_text, max_chars=10000)
+            _notify("3b", f"PDF processed text: {len(processed_text):,} characters")
+        else:
+            _notify("3b", "To fix: provide a pdf_url/local PDF fallback. "
+                           "Production solution: headless browser rendering or direct PDF ingestion.")
+
+    # ── Step 4: LLM extraction ───────────────────────────────────────────────
+    _notify(4, "Extracting T&C fields via OpenAI GPT-4o")
+    fields = extract_with_openai(processed_text, supplier, country)
+
+    # ── Step 4b+: Additional sources for fields missing from primary ─────────
+    sources_used = [{"role": "primary", "url": source_url}]
+
+    if secondary_urls:
+        additional_sources = [{"url": u, "fields_covered": None, "url_status": None}
+                               for u in secondary_urls]
+        source_origin = f"{len(additional_sources)} explicit secondary_urls value(s)"
+    elif not no_auto_sources:
+        additional_sources = _auto_load_secondary_sources(supplier, country, annotation_path)
+        source_origin = "auto-loaded from annotation_base.json" if additional_sources else None
+    else:
+        additional_sources = []
+        source_origin = None
+
+    if additional_sources:
+        _notify("4b", f"{len(additional_sources)} additional source(s) available ({source_origin})")
+        ROLE_NAMES = ["secondary", "tertiary", "quaternary", "quinary"]
+        for i, src in enumerate(additional_sources):
+            unresolved = [f for f, v in fields.items()
+                          if isinstance(v, dict) and
+                          (v.get("confidence") == "LOW" or v.get("value") is None)]
+            if not unresolved:
+                remaining = len(additional_sources) - i
+                _notify("4b", f"All fields resolved — skipping remaining {remaining} source(s)")
+                break
+
+            role = ROLE_NAMES[i] if i < len(ROLE_NAMES) else f"source_{i + 2}"
+            covered = src.get("fields_covered")
+            if covered and not (set(covered) & set(unresolved)):
+                _notify(f"4.{i + 1}", f"Skipping {role} source — covers {', '.join(covered)}, "
+                                       f"none of which are still missing")
+                continue
+
+            _notify(f"4.{i + 1}", f"Fetching {role} source for: {', '.join(unresolved)} ({src['url']})")
+            if src.get("url_status") == "404":
+                _notify(f"4.{i + 1}", "Marked 404 in annotation_base.json — skipping")
+                continue
+            try:
+                sec_bytes = load_source(src["url"])
+                sec_raw = extract_text_from_pdf(sec_bytes)
+                sec_text = preprocess_text(sec_raw, max_chars=10000)
+                _notify(f"4.{i + 1}", f"{role.capitalize()} document: {len(sec_text):,} characters")
+                sec_fields = extract_with_openai(sec_text, supplier, country)
+                merged = []
+                for fname in unresolved:
+                    sec_val = sec_fields.get(fname, {})
+                    if sec_val.get("value") is not None and sec_val.get("confidence") != "LOW":
+                        fields[fname] = sec_val
+                        fields[fname]["source"] = f"{role}: {src['url']}"
+                        merged.append(fname)
+                        _notify(f"4.{i + 1}", f"Merged {fname}: {str(sec_val.get('value', ''))[:60]} "
+                                               f"(confidence: {sec_val.get('confidence')})")
+                if merged:
+                    sources_used.append({"role": role, "url": src["url"], "fields_filled": merged})
+                else:
+                    _notify(f"4.{i + 1}", "No additional fields resolved from this source")
+            except Exception as e:
+                _notify(f"4.{i + 1}", f"{role.capitalize()} source fetch failed: {e} — continuing with what we have")
+    else:
+        _notify("4b", "No additional sources configured or needed — using primary document only")
+
+    # ── Step 4c: Supplier-curated fallback / needs-confirmation messaging ────
+    _notify("4c", "Resolving any still-missing fields against curated overrides")
+    resolve_unconfirmed_fields(supplier, country, fields, annotation_path)
+    curated = [f for f, v in fields.items() if isinstance(v, dict) and v.get("is_curated")]
+    needs_confirmation = [f for f, v in fields.items()
+                           if isinstance(v, dict) and v.get("status_message")]
+    if curated:
+        _notify("4c", f"Supplier-curated value applied: {', '.join(curated)}")
+    if needs_confirmation:
+        _notify("4c", f"Needs supplier confirmation: {', '.join(needs_confirmation)}")
+    if not curated and not needs_confirmation:
+        _notify("4c", "No fields required curated fallback or confirmation messaging")
+
+    # ── Step 5: Validate & score ─────────────────────────────────────────────
+    _notify(5, "Validating extraction and scoring confidence")
+    scores = validate_extraction(fields)
+    _notify(5, f"Overall confidence: {scores['overall_confidence']} | "
+                f"Requires human review: {scores['requires_human_review']}")
+    if scores["low_confidence_fields"]:
+        _notify(5, f"Low confidence: {', '.join(scores['low_confidence_fields'])}")
+
+    # ── Step 6: COB lookup (if needed) ───────────────────────────────────────
+    if scores["tpl_needs_cob_lookup"]:
+        _notify(6, f"TPL not explicit — performing COB 2026 lookup for country: {country}")
+        cob_result = cob_lookup(country)
+        fields["tpl_amount"] = {**fields.get("tpl_amount", {}), **cob_result}
+        _notify(6, f"COB result: {cob_result['value'] or 'No data'} (confidence: {cob_result['confidence']})")
+    else:
+        _notify(6, "TPL stated explicitly in document — COB lookup not required")
+
+    # ── Step 7: Build final record ───────────────────────────────────────────
+    _notify(7, "Building API-ready output record")
+    record = build_api_record(
+        supplier=supplier,
+        country=country,
+        source_url=source_url,
+        doc_hash=doc_hash,
+        ingested_at=ingested_at,
+        fields=fields,
+        scores=scores,
+    )
+    record["sources_used"] = sources_used
+
+    # ── Step 7b: Embed ground truth comparison (optional) ────────────────────
+    if validate:
+        _notify("7b", "Comparing extraction against ground truth annotation")
+        record["validation"] = _build_validation_block(
+            supplier, country, fields,
+            annotation_path=annotation_path
+        )
+        passed = sum(1 for f in record["validation"]["fields"].values() if f["match"])
+        total = len(record["validation"]["fields"])
+        pct = round(passed / total * 100) if total > 0 else 0
+        record["validation"]["fields_correct"] = passed
+        record["validation"]["fields_total"] = total
+        record["validation"]["accuracy_pct"] = pct
+        _notify("7b", f"Accuracy: {passed}/{total} ({pct}%) — "
+                      f"{'meets' if pct >= 95 else 'below'} ≥95% production target")
+
+    return record
+
+
 def main():
     parser = argparse.ArgumentParser(description="TermsIQ POC — T&C Extraction Pipeline")
     parser.add_argument("--supplier", default="Hertz", help="Supplier name")
@@ -1061,194 +1282,35 @@ def main():
                              "(primary only) extraction unless --secondary-url is passed.")
     args = parser.parse_args()
 
-    if args.demo:
-        os.environ.pop("OPENAI_API_KEY", None)  # force demo mode
-
-    # Initialise LangSmith tracing (silent no-op if LANGSMITH_API_KEY not set)
-    global LANGSMITH_ENABLED
-    LANGSMITH_ENABLED = _setup_langsmith()
-
     banner(f"TermsIQ POC — {args.supplier} / {args.country}")
-    ingested_at = datetime.now(timezone.utc).isoformat()
 
-    # ── Step 1: Fetch or load document ──────────────────────────────────────
-    if args.local_file:
-        step(1, f"Loading local file: {args.local_file}")
-        with open(args.local_file, "rb") as f:
-            doc_bytes = f.read()
-        source_url = f"local://{args.local_file}"
-        print(f"  ✓ Loaded {len(doc_bytes):,} bytes")
-    else:
-        doc_bytes, _ = fetch_document(args.url)
-        source_url = args.url
+    seen_steps = set()
 
-    # ── Step 2: Extract text ─────────────────────────────────────────────────
-    step(2, "Extracting text from document")
-    raw_text = extract_text_from_pdf(doc_bytes)
-    doc_hash = hash_document(doc_bytes)
-    print(f"  ✓ Document hash (MD5): {doc_hash}")
-
-    # ── Step 3: Pre-process ──────────────────────────────────────────────────
-    step(3, "Pre-processing text for LLM submission")
-    processed_text = preprocess_text(raw_text, max_chars=10000)
-    print(f"  ✓ Processed text: {len(processed_text):,} characters")
-    if args.debug_text:
-        print("\n" + "="*60)
-        print("  DEBUG: PREPROCESSED TEXT SENT TO LLM")
-        print("="*60)
-        print(processed_text)
-        print("="*60 + "\n")
-
-    # JS-rendered page detection: if processed text is suspiciously short after
-    # fetching a web page, the HTML was a JS shell with no content.
-    # Automatically fall back to --pdf-url if provided.
-    JS_RENDER_THRESHOLD = 5000  # chars — below this from a web page = likely JS shell
-    is_web = args.url and not args.url.lower().endswith(".pdf")
-    if is_web and len(processed_text) < JS_RENDER_THRESHOLD:
-        print(f"  ⚠ Only {len(processed_text):,} chars extracted from web page — "
-              f"page is likely JS-rendered (content loads client-side).")
-        if args.pdf_url:
-            print(f"  → Falling back to PDF: {args.pdf_url}")
-            step("3b", "Fetching fallback PDF document")
-            if args.pdf_url.startswith("http"):
-                pdf_bytes, _ = fetch_document(args.pdf_url)
-            else:
-                with open(args.pdf_url, "rb") as f:
-                    pdf_bytes = f.read()
-                print(f"  ✓ Loaded local PDF: {len(pdf_bytes):,} bytes")
-            source_url = args.pdf_url
-            doc_hash   = hash_document(pdf_bytes)
-            raw_text   = extract_text_from_pdf(pdf_bytes)
-            processed_text = preprocess_text(raw_text, max_chars=10000)
-            print(f"  ✓ PDF processed text: {len(processed_text):,} characters")
+    def cli_progress(step_label, message):
+        # First message for a given step prints as a banner-style step header
+        # (matching the original main()'s step(N, ...) calls); subsequent
+        # messages for that same step print as plain indented detail lines
+        # (matching the original's inline print(f"  ✓ ...") calls).
+        if step_label not in seen_steps:
+            seen_steps.add(step_label)
+            step(step_label, message)
         else:
-            print(f"  ℹ To fix: re-run with --pdf-url <direct PDF URL>")
-            print(f"    Production solution: headless browser rendering or direct PDF ingestion.")
+            print(f"  ✓ {message}")
 
-    # ── Step 4: LLM extraction ───────────────────────────────────────────────
-    step(4, f"Extracting T&C fields via OpenAI GPT-4o")
-    fields = extract_with_openai(processed_text, args.supplier, args.country)
-
-    # ── Step 4b+: Additional sources for fields missing from primary ─────────
-    sources_used = [{"role": "primary", "url": source_url}]
-
-    if args.secondary_url:
-        additional_sources = [{"url": u, "fields_covered": None, "url_status": None}
-                               for u in args.secondary_url]
-        source_origin = f"{len(additional_sources)} explicit --secondary-url value(s)"
-    elif not args.no_auto_sources:
-        additional_sources = _auto_load_secondary_sources(args.supplier, args.country, args.annotation)
-        source_origin = "auto-loaded from annotation_base.json" if additional_sources else None
-    else:
-        additional_sources = []
-        source_origin = None
-
-    if additional_sources:
-        print(f"\n  ℹ {len(additional_sources)} additional source(s) available ({source_origin})")
-        ROLE_NAMES = ["secondary", "tertiary", "quaternary", "quinary"]
-        for i, src in enumerate(additional_sources):
-            unresolved = [f for f, v in fields.items()
-                          if isinstance(v, dict) and
-                          (v.get("confidence") == "LOW" or v.get("value") is None)]
-            if not unresolved:
-                remaining = len(additional_sources) - i
-                print(f"\n  ✓ All fields resolved — skipping remaining {remaining} source(s)")
-                break
-
-            role = ROLE_NAMES[i] if i < len(ROLE_NAMES) else f"source_{i + 2}"
-            covered = src.get("fields_covered")
-            if covered and not (set(covered) & set(unresolved)):
-                step(f"4.{i + 1}", f"Skipping {role} source — covers {', '.join(covered)}, "
-                                    f"none of which are still missing")
-                continue
-
-            step(f"4.{i + 1}", f"Fetching {role} source for: {', '.join(unresolved)}")
-            print(f"  URL: {src['url']}")
-            if src.get("url_status") == "404":
-                print(f"  ⚠ Marked 404 in annotation_base.json — skipping")
-                continue
-            try:
-                sec_bytes  = load_source(src["url"])
-                sec_raw    = extract_text_from_pdf(sec_bytes)
-                sec_text   = preprocess_text(sec_raw, max_chars=10000)
-                print(f"  ✓ {role.capitalize()} document: {len(sec_text):,} characters")
-                sec_fields = extract_with_openai(sec_text, args.supplier, args.country)
-                merged = []
-                for fname in unresolved:
-                    sec_val = sec_fields.get(fname, {})
-                    if sec_val.get("value") is not None and sec_val.get("confidence") != "LOW":
-                        fields[fname] = sec_val
-                        fields[fname]["source"] = f"{role}: {src['url']}"
-                        merged.append(fname)
-                        print(f"  ✓ Merged {fname}: {str(sec_val.get('value', ''))[:60]} "
-                              f"(confidence: {sec_val.get('confidence')})")
-                if merged:
-                    sources_used.append({"role": role, "url": src["url"], "fields_filled": merged})
-                else:
-                    print(f"  ℹ No additional fields resolved from this source")
-            except Exception as e:
-                print(f"  ⚠ {role.capitalize()} source fetch failed: {e} — continuing with what we have")
-    else:
-        step("4b", "No additional sources configured or needed — using primary document only")
-
-    # ── Step 4c: Supplier-curated fallback / needs-confirmation messaging ────
-    step("4c", "Resolving any still-missing fields against curated overrides")
-    resolve_unconfirmed_fields(args.supplier, args.country, fields, args.annotation)
-    curated = [f for f, v in fields.items() if isinstance(v, dict) and v.get("is_curated")]
-    needs_confirmation = [f for f, v in fields.items()
-                           if isinstance(v, dict) and v.get("status_message")]
-    if curated:
-        print(f"  ✓ Supplier-curated value applied: {', '.join(curated)}")
-    if needs_confirmation:
-        print(f"  ℹ Needs supplier confirmation: {', '.join(needs_confirmation)}")
-    if not curated and not needs_confirmation:
-        print(f"  ✓ No fields required curated fallback or confirmation messaging")
-
-    # ── Step 5: Validate & score ─────────────────────────────────────────────
-    step(5, "Validating extraction and scoring confidence")
-    scores = validate_extraction(fields)
-    print(f"  ✓ Overall confidence: {scores['overall_confidence']}")
-    print(f"  ✓ Requires human review: {scores['requires_human_review']}")
-    if scores["low_confidence_fields"]:
-        print(f"  ⚠ Low confidence: {', '.join(scores['low_confidence_fields'])}")
-
-    # ── Step 6: COB lookup (if needed) ───────────────────────────────────────
-    if scores["tpl_needs_cob_lookup"]:
-        step(6, f"TPL not explicit — performing COB 2026 lookup for country: {args.country}")
-        cob_result = cob_lookup(args.country)
-        fields["tpl_amount"] = {**fields.get("tpl_amount", {}), **cob_result}
-        print(f"  ✓ COB result: {cob_result['value'] or 'No data'} (confidence: {cob_result['confidence']})")
-    else:
-        step(6, "TPL stated explicitly in document — COB lookup not required")
-
-    # ── Step 7: Build final record ───────────────────────────────────────────
-    step(7, "Building API-ready output record")
-    record = build_api_record(
+    record = run_extraction(
         supplier=args.supplier,
         country=args.country,
-        source_url=source_url,
-        doc_hash=doc_hash,
-        ingested_at=ingested_at,
-        fields=fields,
-        scores=scores,
+        url=args.url,
+        local_file=args.local_file,
+        pdf_url=args.pdf_url,
+        secondary_urls=args.secondary_url,
+        no_auto_sources=args.no_auto_sources,
+        validate=args.validate,
+        demo=args.demo,
+        annotation_path=args.annotation,
+        debug_text=args.debug_text,
+        progress_callback=cli_progress,
     )
-    record["sources_used"] = sources_used
-
-    # ── Step 7b: Embed ground truth comparison (optional) ────────────────────
-    if args.validate:
-        step("7b", "Comparing extraction against ground truth annotation")
-        record["validation"] = _build_validation_block(
-            args.supplier, args.country, fields,
-            annotation_path=args.annotation
-        )
-        passed = sum(1 for f in record["validation"]["fields"].values() if f["match"])
-        total  = len(record["validation"]["fields"])
-        pct    = round(passed / total * 100) if total > 0 else 0
-        record["validation"]["fields_correct"] = passed
-        record["validation"]["fields_total"]   = total
-        record["validation"]["accuracy_pct"]   = pct
-        print(f"  ✓ Accuracy: {passed}/{total} ({pct}%) — "
-              f"{'meets' if pct >= 95 else 'below'} ≥95% production target")
 
     # ── Step 8: Output ───────────────────────────────────────────────────────
     step(8, f"Writing output to {args.output}")
