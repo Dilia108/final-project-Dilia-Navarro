@@ -123,21 +123,18 @@
           "supplier_verified": true
         },
         "payment_rules": {
-          "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
-          "enriched_value": "Credit: Visa, Mastercard, Amex, Diners Club. Debit: Visa/MC/Discover (compact–fullsize, driver min. 25). Prepaid: NOT accepted. Cash: NOT accepted for deposit. Deposit: min €200 + €500 if no SuperCover.",
+          "expected_value": "Credit and debit cards accepted.",
+          "enriched_value": "Credit: Visa, Mastercard, Amex, Diners Club. Debit: Visa/MC/Discover (compact-fullsize, driver min. 25). Prepaid: NOT accepted. Cash: NOT accepted for deposit.",
           "enriched_source": "Hertz ES PDF (deposit amounts) + Hertz FAQ (card brands)",
           "confidence": "LOW",
           "enriched_confidence": "HIGH",
           "source_text": "Cuando recoja el vehículo, bloquearemos una cantidad en su tarjeta de crédito o débito. Siempre se aplicará un mínimo de 200 euros.",
           "document_heading": "RESERVA DE CRÉDITO/DEPÓSITO",
-          "annotation_note": "PDF states credit/debit accepted but does not specify card brands. Brands sourced from Hertz FAQ.",
+          "annotation_note": "PDF states credit/debit accepted but does not specify card brands. Brands sourced from Hertz FAQ. UPDATE: deposit amount (previously '€200 + €500 if no SuperCover') intentionally removed from enriched_value and validation_keywords — deposit figures come from the supplier's XML feed, not TermsIQ's T&C extraction, to avoid staleness/conflict with the authoritative source.",
           "multi_document": true,
           "validation_keywords": [
             "credit",
-            "debit",
-            "200",
-            "deposit",
-            "supercover"
+            "debit"
           ],
           "resolution_status": "SUPPLIER_CURATED",
           "supplier_verified": true
@@ -147,14 +144,15 @@
           "confidence": "HIGH",
           "source_text": "Solo podrá conducir el vehículo en el país de alquiler. Si desea conducir el vehículo en cualquier otro país, deberá obtener nuestro permiso previo.",
           "document_heading": "Restricciones de viaje / Conducir en el extranjero y viajes transfronterizos",
-          "annotation_note": "Well documented in ES PDF. Forbidden country map is an image — not text-extractable. Production needs image recognition or separate lookup.",
+          "annotation_note": "Well documented in ES PDF. Forbidden country map is an image — not text-extractable. Production needs image recognition or separate lookup. UPDATE: added 'forbidden' to validation_keywords — Hertz DE's equivalent already had it, ES was missing it, and 'forbidden countries' is stable wording Hertz uses consistently across runs.",
           "validation_keywords": [
-            "cross-border",
-            "transfronter",
-            "restrict",
-            "prohibit",
             "authoris",
-            "permission"
+            "cross-border",
+            "forbidden",
+            "permission",
+            "prohibit",
+            "restrict",
+            "transfronter"
           ]
         }
       }
@@ -242,21 +240,18 @@
           ]
         },
         "payment_rules": {
-          "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
+          "expected_value": "Credit and debit cards accepted.",
           "enriched_value": "Credit: Visa, Mastercard, Amex, Diners Club. Debit: international Visa/MC/Discover accepted. EC-Karte (German domestic debit): NOT accepted. Prepaid: NOT accepted. Cash: NOT accepted.",
           "enriched_source": "Hertz DE PDF + Hertz FAQ (card brands + EC-Karte exclusion)",
           "confidence": "LOW",
           "enriched_confidence": "HIGH",
           "source_text": "When you collect the vehicle we will reserve an amount on your credit or debit card (or take a deposit).",
           "document_heading": "RESERVATION OF CREDIT/DEPOSIT",
-          "annotation_note": "PDF states credit/debit only. EC-Karte exclusion is Germany-specific and critical — not in PDF. Cash NOT accepted in Germany (unlike Spain).",
+          "annotation_note": "PDF states credit/debit only. EC-Karte exclusion is Germany-specific and critical — not in PDF. Cash NOT accepted in Germany (unlike Spain). UPDATE: validation_keywords no longer require a deposit figure — deposit amounts are sourced via the supplier's XML feed, not TermsIQ's T&C extraction.",
           "multi_document": true,
           "validation_keywords": [
             "credit",
-            "debit",
-            "200",
-            "deposit",
-            "supercover"
+            "debit"
           ],
           "resolution_status": "SUPPLIER_CURATED",
           "supplier_verified": true

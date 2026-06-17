@@ -133,7 +133,11 @@ RULES:
 - For licence_rules: look for a DEDICATED licence/driving permit section (e.g. "Driving Licence Requirements", "Führerschein", "Permiso de conducir"). If no dedicated licence section exists — only general mentions of driving within cross-border or other clauses — set value to null and confidence to LOW. Do not infer licence rules from cross-border sections.
   Summarise what is accepted, rejected, what needs IDP or translation.
 - For payment_rules: look for credit card, debit card, tarjeta, Zahlungsmittel, deposit/deposito.
-  Note what is accepted and what is not.
+  Note what card types/payment methods are accepted and what is not (e.g. cash, prepaid).
+  IMPORTANT: never include a specific deposit/security-hold AMOUNT (e.g. "€200", "minimum 200 euros")
+  in the value, even if the document states one (amounts come from the supplier's separate rate
+  feed, not this document). Simply omit the figure — do NOT add any explanatory note about why
+  it's omitted; the value should read like a normal, clean payment-rules summary.
 - For cross_border_conditions: look for cross-border, transfronterizo, Ausland, zone, prohibited countries.
   Summarise restrictions and penalties.
 - confidence: HIGH if clearly stated, MEDIUM if implied, LOW only if genuinely absent after thorough search.
@@ -227,9 +231,9 @@ Correct extraction:
     "source_text": null
   },
   "payment_rules": {
-    "value": "Credit and debit cards accepted for deposit. Minimum deposit EUR 200. Additional EUR 500 if SuperCover not purchased.",
+    "value": "Credit or debit card required at pickup to secure the rental.",
     "confidence": "HIGH",
-    "source_text": "bloquearemos una cantidad en su tarjeta de crédito o débito. Mínimo 200 euros."
+    "source_text": "bloquearemos una cantidad en su tarjeta de crédito o débito"
   },
   "cross_border_conditions": {
     "value": "Travel to prohibited countries invalidates all insurance and waivers. Vehicle repatriation penalty: EUR 2,317.",
@@ -241,6 +245,9 @@ Correct extraction:
 Note on Example 2: grace_period_minutes and licence_rules are null with LOW confidence
 because they are genuinely absent from this document — NOT because the LLM could not find them.
 A null + LOW result is correct when the field is absent. Never guess or fabricate.
+Note on payment_rules: the document states a specific deposit figure (EUR 200, plus EUR 500
+without SuperCover) but the correct extraction OMITS that figure entirely — only the payment
+method required for the hold is reported. This applies to every supplier, not just Hertz.
 
 """
 
@@ -251,7 +258,9 @@ Fields (return all 5, use null only if genuinely absent after reading the full t
 1. tpl_amount - third party liability amount or STATUTORY_MINIMUM
 2. grace_period_minutes - minutes a booking is held after scheduled PICKUP time before being cancelled (pickup grace period only). NOT the return/drop-off grace period. If only a return grace period is mentioned, set null.
 3. licence_rules - what licences accepted/rejected/need IDP or translation. Only extract from a dedicated licence section. If the document has no dedicated licence section, return null.
-4. payment_rules - accepted/rejected payment methods for deposit and rental
+4. payment_rules - accepted/rejected payment methods for deposit and rental. NEVER include a
+   specific deposit amount/figure even if stated in the document — just omit it silently,
+   don't add a note explaining the omission.
 5. cross_border_conditions - permitted zones/countries, prohibited, penalties
 
 Each field: value, confidence (HIGH/MEDIUM/LOW), source_text (MUST be copied verbatim from the document text above, max 80 chars, or null if field is absent — never invent or paraphrase source_text)
@@ -529,8 +538,8 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
             "2. grace_period_minutes: Hertz does not state a pickup grace period in country PDFs. "
             "Return null + LOW if absent. Do NOT confuse a RETURN/drop-off grace period with a pickup grace period.\n"
             "3. payment_rules: extract WHICH card types are accepted and rejected (e.g. credit card, "
-            "debit card, cash). Do NOT summarise the deposit amount (e.g. minimum €200, €500 SuperCover) "
-            "as the payment rule — deposit amounts are separate from card acceptance rules. "
+            "debit card, cash). NEVER include the deposit amount (e.g. €200, €500 SuperCover) in the "
+            "value — just omit it silently, don't explain the omission in the value text. "
             "Focus on: what cards are accepted, what is rejected (cash, prepaid, specific brands).\n"
             "4. cross_border_conditions: extract normally — present in Hertz PDFs with HIGH confidence."
         ),
@@ -980,15 +989,34 @@ def print_record_summary(record: dict):
                 print(f"      ℹ {field_data['status_message']}")
             else:
                 print("      null / not found")
+
+            # Attribution — shown in full (no truncation) and consistently across every
+            # field, whatever combination of these keys happens to be present:
+            #   source_text  — verbatim phrase quoted from the supplier document
+            #   source       — a named external reference (e.g. COB lookup table,
+            #                  or "supplier_curated: <enriched_source>")
+            #   source_url   — URL backing that reference, if any
+            #   curated_url  — the specific supplier page a curated value traces to
             if field_data.get('source_text'):
-                src = field_data['source_text'][:80]
-                print(f"      Source: \"{src}\"")
-            if is_curated and field_data.get('curated_url'):
-                print(f"      Curated source: {field_data['curated_url']}")
+                src_wrapped = textwrap.fill(f'Source: "{field_data["source_text"]}"', width=65,
+                                            initial_indent="      ", subsequent_indent="              ")
+                print(src_wrapped)
+            if is_curated:
+                src_desc = (field_data.get('source') or '').replace('supplier_curated: ', '')
+                if src_desc:
+                    print(f"      Curated source: {src_desc}")
+                if field_data.get('curated_url'):
+                    print(f"      Curated URL: {field_data['curated_url']}")
+            elif field_data.get('source') and field_data.get('source') != field_data.get('source_text'):
+                print(f"      Reference: {field_data['source']}")
+                if field_data.get('source_url'):
+                    print(f"      Reference URL: {field_data['source_url']}")
             if field_data.get('note'):
                 print(f"      Note: {field_data['note']}")
             if field_data.get('disclaimer'):
-                print(f"      ⚠ {field_data['disclaimer'][:80]}")
+                disc_wrapped = textwrap.fill(f"⚠ {field_data['disclaimer']}", width=65,
+                                             initial_indent="      ", subsequent_indent="        ")
+                print(disc_wrapped)
 
     if record.get('sources_used') and len(record['sources_used']) > 1:
         print(f"\n  {'─'*55}")

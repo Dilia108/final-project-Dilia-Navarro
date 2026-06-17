@@ -1,11 +1,11 @@
 {
-  "record_id": "Sixt-DE-1781686335",
+  "record_id": "Sixt-DE-1781689338",
   "supplier": "Sixt",
   "pickup_country": "DE",
   "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
-  "document_hash": "595af6391ecc439e0520a8a99b7f68f6",
-  "ingested_at": "2026-06-17T08:51:59.834264+00:00",
-  "extracted_at": "2026-06-17T08:52:15.753354+00:00",
+  "document_hash": "6c509bd3d9bbaaa4b8c7c8f8088e66f6",
+  "ingested_at": "2026-06-17T09:42:09.841962+00:00",
+  "extracted_at": "2026-06-17T09:42:18.342347+00:00",
   "extraction_model": "gpt-4o-mini",
   "overall_confidence": "HIGH",
   "requires_human_review": false,
@@ -21,16 +21,15 @@
     "grace_period_minutes": {
       "value": 60,
       "confidence": "HIGH",
-      "source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
-      "source": "secondary: https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/"
+      "source_text": "muss bei Abholung eine Kredit- oder Debitkarte vorgelegt werden."
     },
     "licence_rules": {
       "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
       "confidence": "HIGH",
-      "source_text": "Fotokopien und digitale Dokumente werden nicht akzeptiert."
+      "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
     },
     "payment_rules": {
-      "value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not accepted.",
+      "value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China UnionPay. Prepaid cards not accepted. Cash not accepted.",
       "confidence": "HIGH",
       "source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB."
     },
@@ -44,19 +43,12 @@
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-17T08:52:15.753368+00:00"
+    "last_updated": "2026-06-17T09:42:18.342357+00:00"
   },
   "sources_used": [
     {
       "role": "primary",
       "url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3"
-    },
-    {
-      "role": "secondary",
-      "url": "https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/",
-      "fields_filled": [
-        "grace_period_minutes"
-      ]
     }
   ],
   "validation": {
@@ -76,10 +68,10 @@
       },
       "grace_period_minutes": {
         "match": true,
-        "validated_via": "multi_document_resolution_unverified_content",
+        "validated_via": "keyword_match",
         "ai_value": "60",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
+        "ai_source_text": "muss bei Abholung eine Kredit- oder Debitkarte vorgelegt werden.",
         "expected_value": 60,
         "expected_confidence": "HIGH",
         "annotation_note": "Sourced from Sixt DE help center /anfahrt-und-ankunft/. With flight number: up to 24 hours guaranteed. Airport stations stay open 1 hour after closing for delayed flights."
@@ -89,7 +81,7 @@
         "validated_via": "keyword_match",
         "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Fotokopien und digitale Dokumente werden nicht akzeptiert.",
+        "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
         "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
         "expected_confidence": "HIGH",
         "annotation_note": "Well documented in main T&C. Ukrainian licence exception is time-limited (03/2027). Premium vehicles (GELY/WFLY/JELY/JELP): min. 5 prior Sixt rentals required."
@@ -97,7 +89,7 @@
       "payment_rules": {
         "match": true,
         "validated_via": "keyword_match",
-        "ai_value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not ",
+        "ai_value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China UnionPay. Prepaid cards not a",
         "ai_confidence": "HIGH",
         "ai_source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, Ameri",
         "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus, Amex BTA/iBTA accepted. Maestro/VPAY: vans and trucks + vehicles up to F*** only. Prepaid NOT accepted. Cash NOT accepted. Deposit: rental + €300 to €2,000 by vehicle group.",
