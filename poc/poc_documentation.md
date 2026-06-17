@@ -1,6 +1,8 @@
 # TermsIQ POC Documentation
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
-Version 1.4 — June 2026
+Version 1.5 — June 2026
+
+> **Version 1.5 note:** added the "Ground Truth: annotation_base.json" and "URL Validity Agent" sections, neither of which were previously documented despite being used throughout the pipeline — `annotation_base.json` is now explained as the Content team's single source of truth, and the URL Validity Agent (`url_agent.py` + its n8n equivalent) is documented for the first time. Also expanded the one-line LangSmith mention into an actual explanation, and updated Files in This POC Package to include everything that was missing.
 
 > **Version 1.4 note:** the original live testing below (TC-01 through TC-04) was run via the Python script — that's still accurate and unchanged. A separate hardening pass on `poc_workflow.json` specifically followed, since the n8n track's Web/HTML and Excel branches turned out to have real extraction code that was never actually wired into the rest of the pipeline — meaning the "three source types handled live" claim in the Overview below was true for the Python script but not yet true for n8n until this pass. See **"n8n Workflow Hardening — June 2026"** below for what changed and a separate n8n-specific test results section.
 
@@ -33,6 +35,7 @@ For each source the pipeline:
 | **OpenAI GPT-4o-mini** | LLM extraction of T&C fields | Sufficient capability for structured extraction; available on standard OpenAI project tier; temperature=0 for deterministic output |
 | **pypdf** | PDF text extraction | Lightweight; handles multi-page PDFs with text layer |
 | **COB 2026 table** | TPL statutory minimum reference | Built-in lookup from Council of Bureaux April 2026 edition |
+| **LangSmith** | Optional LLM call tracing & observability | Traces every OpenAI extraction call with supplier/country metadata and a confidence-based feedback score (HIGH=1.0/MEDIUM=0.5/LOW=0.0); entirely optional — the pipeline runs identically without it if `LANGCHAIN_API_KEY` isn't set |
 
 ---
 
@@ -125,6 +128,33 @@ Assembles final JSON with provenance metadata, confidence scores, status (APPROV
 
 **Step 8 — Output**
 Writes `termsiq_output.json`. With `--validate`, embeds field-by-field comparison against manually verified ground truth from the annotation file.
+
+---
+
+## Ground Truth: `annotation_base.json`
+
+Every `--validate` accuracy check this POC runs reads from one file: `annotation_base.json`. It's the single, machine-readable source of truth for what a correct extraction looks like, and it's designed to be owned and maintained by the **Content team going forward, not engineering** — the schema is built so a non-technical reviewer can correct a value, confirm an answer with a supplier, or add a new supplier/country combination without touching any pipeline code.
+
+**Structure.** The file has one `records` array, one entry per supplier/country combination (`HERTZ_ES`, `SIXT_DE`, etc.). Each record has two parts:
+
+- `sources` — every document URL relevant to this supplier/country, split into `primary` (the main T&C document) and `secondary` (FAQ pages, help-center articles, country supplements — anything covering fields the primary document doesn't). Each source carries a `url_status` (`OK` / `404` / `JS_RENDERED` / etc.) kept current automatically by the URL Validity Agent below — not something the Content team needs to check by hand.
+- `fields` — the 5 extracted fields, each with an `expected_value` and `validation_keywords` (used for the `--validate` accuracy check) plus an `annotation_note` recording the reviewer's reasoning — e.g. why a field is genuinely absent from the primary document, or which exact FAQ question it was sourced from.
+
+**Two fields already in the schema, not yet used by this POC script.** `annotation_base.json` was designed with the next stage in mind, so two things are already present in the data even though `termsiq_poc.py` only reads this file for the `--validate` comparison and doesn't act on either of them yet:
+- `multi_document: true` on a field, paired with a `fields_covered` list on a `secondary` source — intended to let a future pipeline automatically fetch and merge a second document when the primary doesn't resolve a field, with no per-supplier code change needed.
+- `resolution_status: "SUPPLIER_CURATED"` and `supplier_verified: true`, paired with an `enriched_value` — intended for fields that genuinely can't be resolved from any live document, where the Content team has obtained and verified the correct answer directly from the supplier instead.
+
+Both of these are implemented and live in the MVP script (`termsiq_mvp.py`), not this POC — worth knowing if a field's expected value here looks oddly specific despite the POC reporting it as null; that's usually `enriched_value` data prepared ahead of the MVP work, not a POC bug.
+
+In short: a new supplier/country combination or a corrected expected value are just edits to this one JSON file — no pipeline code changes required, for either the POC or the MVP that reads from the same file.
+
+---
+
+## URL Validity Agent
+
+Every source in `annotation_base.json` is a live URL, and live URLs change — Sixt reorganised their help center mid-POC (Key Finding #6 below), and the only reason it didn't silently break extraction was that it happened to be caught manually. `url_agent.py` automates that check going forward: it walks every `primary` and `secondary` URL in `annotation_base.json`, checks each one's live status (`OK`, `404`, `JS_RENDERED` if the page content looks like a client-rendered shell, `REDIRECT`, `BLOCKED` for bot-blocking 403s, `TIMEOUT`), writes the result back into that source's `url_status`, and logs every run to `url_agent_log.json` (last 90 runs kept). Run with `--notify`, it emails a summary when any URL needs action, and exits non-zero in that case — so it can gate a scheduled pipeline rather than just report after the fact.
+
+The same logic also exists as an n8n workflow, `url_agent_workflow_v2.json`, for scheduled daily execution without needing a server to keep the Python script running: `Schedule Trigger → Build URL List → Check URL → Classify Result → Aggregate Results → Issues Found? → Send Alert Email / Log — All OK`. A recorded demo of this n8n flow running end-to-end is included (`DEMO-n8n-URLAgent.mp4`).
 
 ---
 
@@ -308,8 +338,10 @@ pip install pypdf openai
 ```powershell
 $env:OPENAI_API_KEY = "sk-your-key-here"
 $env:PYTHONIOENCODING = "utf-8"
-$env:LANGCHAIN_API_KEY = "ls__your_key_here" 
+$env:LANGCHAIN_API_KEY = "ls__your_key_here"   # optional — see LangSmith tracing below
 ```
+
+**LangSmith tracing (optional).** If `LANGCHAIN_API_KEY` is set, `_setup_langsmith()` auto-creates a `TermsIQ-POC` project on LangSmith's EU endpoint and traces every OpenAI extraction call, attaching a feedback score derived from confidence (HIGH=1.0, MEDIUM=0.5, LOW=0.0) along with supplier/country/token-count metadata — useful for spotting confidence drift across runs without re-reading terminal output each time. This is entirely optional and additive: without the key, `_setup_langsmith()` returns `False` and every other step in the pipeline runs identically, with zero behavior change.
 
 ### TC-01 — Hertz ES (PDF)
 ```powershell
@@ -358,11 +390,16 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 | `termsiq_poc.py` | Standalone Python script — PDF, web, and JS-rendered page source types |
 | `sample_tc.txt` | Sample T&C text file for demo mode (Hertz ES simplified) |
 | `termsiq_output.json` | Sample output from live run with `--validate` block embedded |
-| `Annotation_Hertz_Sixt_Goldcar.xlsx` | Manually verified ground truth for all 4 test cases. Located in the Annotations folder |
+| `annotation_base.json` | The single, machine-readable ground truth the pipeline reads at runtime — see "Ground Truth" above. Located in the Annotations folder |
+| `Annotation_Hertz_Sixt_Goldcar.xlsx` | The original manual research/annotation work for all 5 test cases. Located in the Annotations folder |
+| `url_agent.py` | Standalone URL Validity Agent — checks every source URL in `annotation_base.json` and updates its status. Located in the Annotations folder |
+| `url_agent_workflow_v2.json` | n8n workflow — 9 nodes, same URL-checking logic as `url_agent.py` for scheduled daily execution. Located in the Annotations folder |
+| `url_agent_log.json` | Append-only log of every URL Agent run (last 90 kept). Located in the Annotations folder |
+| `DEMO-n8n-URLAgent.mp4` | Recorded demo of the URL Validity Agent's n8n workflow running end-to-end. Located in the Annotations folder |
 | `TC - BCN - 2026-06-15T10_09_55Z.pdf` | Goldcar ES T&C PDF (local — requires session-authenticated download). Located in the T&C samples folder |
 | `poc_documentation.md` | This file |
-| `DEMO_POC_workflow.mp4` | Demo of the n8n poc_workflow |
+| `DEMO_POC_Workflow.mp4` | Demo of the n8n poc_workflow. Located in the Demo POC folder |
 | `poc_terminal_output.md` | Terminal output obtained for the 5 suppliers |
 ---
 
-*TermsIQ POC Documentation — Version 1.4 — June 2026*
+*TermsIQ POC Documentation — Version 1.5 — June 2026*
