@@ -40,11 +40,14 @@ Version 1.3 — June 2026
 | Monitoring and accuracy review | €500 | €1,000 | €3,000–6,000 | €6,000–12,000 |
 | Model/prompt maintenance | €500 | €1,000 | €3,000–6,000 | €6,000–12,000 |
 | Compliance upkeep (GDPR, EU AI Act annual review) | €100 | €200 | €600–1,200 | €1,200–2,400 |
+| Annotation base maintenance (ground truth + source review, annual) | n/a — annual item | n/a — annual item | €800–2,000 | €800–2,000 |
 | **Total ongoing per month** | **€7,460** | **€14,425** | | |
-| **Total ongoing months 7–12** | | | **€44,760–86,550** | |
-| **Total ongoing Year 2–3 (per year)** | | | | **€89,520–173,100** |
-| **Midpoint ongoing Year 1 (months 7–12)** | | | **€65,655** | |
-| **Midpoint ongoing Year 2–3 (per year)** | | | | **€131,310** |
+| **Total ongoing months 7–12** | | | **€45,560–88,550** | |
+| **Total ongoing Year 2–3 (per year)** | | | | **€90,320–175,100** |
+| **Midpoint ongoing Year 1 (months 7–12)** | | | **€67,055** | |
+| **Midpoint ongoing Year 2–3 (per year)** | | | | **€132,710** |
+
+> **Annotation base maintenance** is a once-a-year task, not a monthly recurring one — re-verifying a sample of ground-truth values against current supplier documents, refreshing any supplier-curated overrides, and adding new supplier/country combinations as coverage grows. URL *health* (404s, redirects, JS-rendering changes) is checked automatically and far more often by the daily-scheduled URL agent — this line is specifically the manual content review that automation doesn't cover. Estimated at 2–3 days of a backend engineer's or content lead's time annually, at the day-rate basis already used elsewhere in this cost model.
 
 ---
 
@@ -104,10 +107,10 @@ T&C-related counter disputes (wrong payment, cancelled booking, rejected licence
 | Item | Midpoint estimate |
 |---|---|
 | Total cost — upfront (months 1–6) | €143,000 |
-| Total cost — ongoing (months 7–12) | €65,805 |
-| **Total 12-month cost** | **€208,805** |
+| Total cost — ongoing (months 7–12) | €67,205 |
+| **Total 12-month cost** | **€210,205** |
 | Annual benefit (months 7–12, 6 months of value) | €20,950 |
-| Net benefit at 12 months | €20,950 − €208,805 = **−€187,855** |
+| Net benefit at 12 months | €20,950 − €210,205 = **−€189,255** |
 | **12-month ROI** | **−90%** |
 
 > Year 1 is investment-heavy. The system is not live and generating value until month 7 at earliest. A negative 12-month ROI is expected and normal for a software build — this does not mean the investment is unsound.
@@ -116,22 +119,22 @@ T&C-related counter disputes (wrong payment, cancelled booking, rejected licence
 
 | Item | Midpoint estimate |
 |---|---|
-| Total cost — Year 1 (upfront + ongoing) | €208,805 |
-| Total cost — Year 2 | €131,610 |
-| Total cost — Year 3 | €131,610 |
-| **Total 36-month cost** | **€472,025** |
+| Total cost — Year 1 (upfront + ongoing) | €210,205 |
+| Total cost — Year 2 | €133,010 |
+| Total cost — Year 3 | €133,010 |
+| **Total 36-month cost** | **€476,225** |
 | Annual benefit — Year 1 (6 months live) | €20,950 |
 | Annual benefit — Year 2 | €41,900 |
 | Annual benefit — Year 3 | €41,900 |
 | **Total 36-month benefit** | **€104,750** |
-| **Net benefit at 36 months** | **−€367,275** |
+| **Net benefit at 36 months** | **−€371,475** |
 | **36-month ROI (base case, Streams 1+2 only)** | **−78%** |
 
 | Item | With Stream 3 commercial upside included |
 |---|---|
 | Additional annual benefit (Stream 3) | €30,000/year |
 | Total 36-month benefit incl. Stream 3 | €104,750 + €90,000 = €194,750 |
-| **Net benefit at 36 months incl. Stream 3** | **−€277,275** |
+| **Net benefit at 36 months incl. Stream 3** | **−€281,475** |
 | **36-month ROI incl. commercial upside** | **−59%** |
 
 > **Honest interpretation:** On quantified cost-saving metrics alone, TermsIQ does not return a positive ROI within 36 months at midpoint estimates. This is a known limitation of risk-avoidance and compliance-driven investments — the value is real but hard to fully monetise in a spreadsheet. The business case is strengthened significantly by Stream 3 (commercial differentiation) and by the risk that a regulatory enforcement action — which is unquantified above its probability-adjusted value — could cost multiples of the entire TermsIQ build cost in a single incident.

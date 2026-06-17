@@ -3,6 +3,45 @@
   "nodes": [
     {
       "parameters": {
+        "formTitle": "TermsIQ Test Run",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Test Case",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "hertz_es"
+                  },
+                  {
+                    "option": "hertz_de"
+                  },
+                  {
+                    "option": "sixt_es"
+                  },
+                  {
+                    "option": "sixt_de"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -752,
+        -16
+      ],
+      "id": "fd0b6582-fe53-4c64-89b6-bc809eee3e04",
+      "name": "On form submission",
+      "webhookId": "2aa2ad2c-d934-400a-b422-8e3ff5d5a674"
+    },
+    {
+      "parameters": {
         "rule": {
           "interval": [
             {
@@ -12,19 +51,33 @@
           ]
         }
       },
-      "id": "ea71bd21-7d0b-4065-bada-65457d651bc4",
+      "id": "59758572-3672-4368-9814-3d13c0872f37",
       "name": "Schedule Trigger (Daily 08:00)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
       "position": [
-        -880,
-        128
+        -768,
+        -304
       ],
       "notes": "Triggers daily at 08:00 UTC. In production each supplier has its own schedule entry with sourceType, url, supplier, and pickupCountry configured. For the POC, edit node-fetch-doc to switch supplier and source type."
     },
     {
       "parameters": {
-        "url": "https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf",
+        "jsCode": "// Set Run Config — single place to configure this run\n// Reads the test case from the Form Trigger's \"Test Case\" dropdown if that's what\n// triggered this run; falls back to ACTIVE_PRESET (e.g. for Schedule Trigger runs,\n// where there's no form to read from).\nconst ACTIVE_PRESET = 'hertz_es'; // used only when not triggered via the form\n\nconst PRESETS = {\n  hertz_es: { supplier: 'Hertz', pickupCountry: 'ES', url: 'https://images.hertz.com/pdfs/RT_FULL_ES_EN.pdf', sourceType: 'auto' },\n  hertz_de: { supplier: 'Hertz', pickupCountry: 'DE', url: 'https://images.hertz.com/pdfs/RT_FULL_DE_EN.pdf', sourceType: 'auto' },\n  sixt_es:  { supplier: 'Sixt',  pickupCountry: 'ES', url: 'https://www.sixt.es/php/terms/view?language=en_US&liso=ES&rtar=000&view=EPP&tlang=es_ES&style=typo3', sourceType: 'auto' },\n  sixt_de:  { supplier: 'Sixt',  pickupCountry: 'DE', url: 'https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3', sourceType: 'auto' },\n  // goldcar_es: not added yet — primary URL not confirmed here, and it's known to be\n  // JS-rendered, so it won't extract real content via this workflow's Web branch\n  // until headless-browser rendering exists (the Python script handles this via a\n  // local PDF fallback; this n8n workflow doesn't have that fallback path).\n};\n\nlet selectedPreset = ACTIVE_PRESET;\ntry {\n  // References the actual Form Trigger node name confirmed on the canvas: 'On form submission'.\n  const formData = $('On form submission').first().json;\n  if (formData && formData['Test Case'] && PRESETS[formData['Test Case']]) {\n    selectedPreset = formData['Test Case'];\n  }\n} catch (e) {\n  // Form Trigger didn't fire this run (e.g. Schedule Trigger did instead) — keep ACTIVE_PRESET\n}\n\nreturn [{ json: PRESETS[selectedPreset] }];"
+      },
+      "id": "108cb367-3620-455d-ba98-de0db543385c",
+      "name": "Set Run Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        -144
+      ],
+      "notes": "Reads the active test case from the Form Trigger's dropdown when that's what triggered the run, otherwise falls back to ACTIVE_PRESET (used for Schedule Trigger runs). Update the 'n8n Form' string in the try block if your Form Trigger node has a different name."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
         "options": {
           "response": {
             "response": {
@@ -34,56 +87,56 @@
           "timeout": 30000
         }
       },
-      "id": "56363d03-14b6-4089-9671-0029fdd1e0c5",
+      "id": "3a032ebd-dafc-40cc-bbaa-f469a551c8e4",
       "name": "Fetch Supplier Document (PDF / Web / Excel)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -656,
-        128
+        -240,
+        -144
       ],
-      "notes": "Fetches the supplier T&C document. Set sourceType to 'pdf', 'web', or 'excel'.\nPOC default: Hertz Spain PDF. Change url + sourceType to switch supplier.\nThe sourceType is injected into the output JSON and drives the IF branch below."
+      "notes": "Fetches the supplier T&C document. URL, sourceType, supplier, and pickupCountry are all set in the upstream 'Set Run Config' node — edit that node to switch supplier/country, not this one."
     },
     {
       "parameters": {
         "operation": "pdf",
         "options": {}
       },
-      "id": "fe250e1c-7da2-474a-8360-7026dc7c5a43",
+      "id": "0aa0130f-1160-4f44-a6e1-cf06975f8869",
       "name": "Extract Text — PDF",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        416,
+        -272
       ],
       "notes": "Extracts text from PDF binary using n8n built-in PDF extractor. Handles multi-page PDFs. In production: OCR applied to scanned PDFs using AWS Textract before this node."
     },
     {
       "parameters": {
-        "jsCode": "// Pre-process & Hash Document\n// Multi-anchor section detection with accent-normalized matching\n\nconst rawText = $input.first().json.text || $input.first().json.data || '';\nconst upstream = $input.first().json;\n\n// ── Supplier / Country config — update per test case ──────────────────────\nconst SUPPLIER = 'Hertz';      // Change to: Hertz / Sixt / Goldcar\nconst COUNTRY  = 'ES';         // Change to: ES / DE\n// ─────────────────────────────────────────────────────────────────────────\n\nconst hash = require('crypto')\n  .createHash('md5')\n  .update(rawText)\n  .digest('hex');\n\nconst MAX_CHARS = 10000;\nconst WINDOW    = 1600;\n\nfunction normalize(str) {\n  return str.toLowerCase()\n    .replace(/[áàâä]/g, 'a').replace(/[éèêë]/g, 'e')\n    .replace(/[íìîï]/g, 'i').replace(/[óòôö]/g, 'o')\n    .replace(/[úùûü]/g, 'u').replace(/ñ/g, 'n')\n    .replace(/ß/g, 'ss').replace(/ç/g, 'c');\n}\n\nfunction preprocessText(text) {\n  const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);\n  const cleaned = lines.join('\\n');\n  if (cleaned.length <= MAX_CHARS) return cleaned;\n\n  const cl = normalize(cleaned);\n\n  const anchors = [\n    ['insurance and excess waiver', 'opciones de seguro',\n     'third party liability insurance', 'third party liability',\n     'haftpflichtversicherung', 'seguro de responsabilidad', 'responsabilidad civil',\n     'protection conditions', 'liability insurance', 'third party insurance'],\n    ['karenzzeit', '60-minuten-karenz', 'reserva mantenida', 'reserva garantizada',\n     'periodo de tolerancia', 'pickup grace', 'held for pickup', 'no-show policy',\n     'will be held', 'reservation held', 'garantizara tu reserva',\n     'seis (6) horas', 'booking guarantee', 'grace period'],\n    ['driving licence', 'driving license', \"driver's licence\", \"driver's license\",\n     'photocopies will not be accepted', 'international driving permit',\n     'permiso de conducir', 'fuhrerschein', 'idp required',\n     'age and driving', 'driving permit', 'permiso de conduccion'],\n    ['reservation of credit', 'reserva de credito',\n     'credit card', 'debit card', 'zahlungsmittel', 'tarjeta de credito',\n     'payment method', 'method of payment', 'medios de pago', 'methods of payment'],\n    ['cross-border', 'cross border', 'ausland', 'transfronter',\n     'forbidden countr', 'zone i:', 'zona i:', 'zone ii', 'zona ii',\n     'border crossing', 'authorized countries'],\n  ];\n\n  const chunks = [];\n  const usedRanges = [];\n\n  for (const anchorGroup of anchors) {\n    let bestIdx = -1;\n    for (const kw of anchorGroup) {\n      const idx = cl.indexOf(normalize(kw));\n      if (idx >= 0 && !usedRanges.some(([s, e]) => s <= idx && idx <= e)) {\n        bestIdx = idx;\n        break;\n      }\n    }\n    if (bestIdx >= 0) {\n      const start = Math.max(0, bestIdx - 100);\n      const end   = Math.min(cleaned.length, bestIdx + WINDOW);\n      chunks.push(cleaned.substring(start, end));\n      usedRanges.push([start, end]);\n    }\n  }\n\n  if (chunks.length > 0) {\n    return chunks.join('\\n\\n[--- section ---]\\n\\n').substring(0, MAX_CHARS);\n  }\n  return cleaned.substring(0, MAX_CHARS);\n}\n\nconst processedText = preprocessText(rawText);\n\nreturn [{\n  json: {\n    processedText,\n    documentHash: hash,\n    supplier: SUPPLIER,\n    pickupCountry: COUNTRY,\n    sourceUrl: upstream.url || 'local',\n    sourceType: upstream.sourceType || 'pdf',\n    ingestedAt: new Date().toISOString(),\n    characterCount: rawText.length,\n    chunksFound: (processedText.match(/\\[--- section ---\\]/g) || []).length + 1\n  }\n}];"
+        "jsCode": "// Pre-process & Hash Document\n// Multi-anchor section detection with accent-normalized matching\n\nconst rawText = $input.first().json.text || $input.first().json.data || '';\nconst upstream = $input.first().json;\n\n// ── Supplier / Country — read from Set Run Config, the single source of truth ──\nconst __cfg = $('Set Run Config').first().json;\nconst SUPPLIER = __cfg.supplier;\nconst COUNTRY  = __cfg.pickupCountry;\n// ─────────────────────────────────────────────────────────────────────────\n\nconst hash = require('crypto')\n  .createHash('md5')\n  .update(rawText)\n  .digest('hex');\n\nconst MAX_CHARS = 10000;\nconst WINDOW    = 1600;\n\nfunction normalize(str) {\n  return str.toLowerCase()\n    .replace(/[áàâä]/g, 'a').replace(/[éèêë]/g, 'e')\n    .replace(/[íìîï]/g, 'i').replace(/[óòôö]/g, 'o')\n    .replace(/[úùûü]/g, 'u').replace(/ñ/g, 'n')\n    .replace(/ß/g, 'ss').replace(/ç/g, 'c');\n}\n\nfunction preprocessText(text) {\n  const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);\n  const cleaned = lines.join('\\n');\n  if (cleaned.length <= MAX_CHARS) return cleaned;\n\n  const cl = normalize(cleaned);\n\n  const anchors = [\n    ['insurance and excess waiver', 'opciones de seguro',\n     'third party liability insurance', 'third party liability',\n     'haftpflichtversicherung', 'seguro de responsabilidad', 'responsabilidad civil',\n     'protection conditions', 'liability insurance', 'third party insurance'],\n    ['karenzzeit', '60-minuten-karenz', 'reserva mantenida', 'reserva garantizada',\n     'periodo de tolerancia', 'pickup grace', 'held for pickup', 'no-show policy',\n     'will be held', 'reservation held', 'garantizara tu reserva',\n     'seis (6) horas', 'booking guarantee', 'grace period'],\n    ['driving licence', 'driving license', \"driver's licence\", \"driver's license\",\n     'photocopies will not be accepted', 'international driving permit',\n     'permiso de conducir', 'fuhrerschein', 'idp required',\n     'age and driving', 'driving permit', 'permiso de conduccion'],\n    ['kredit- und debit', 'debitkarten', 'kreditkarten', 'reservation of credit', 'reserva de credito',\n     'credit card', 'debit card', 'tarjeta de credito',\n     'payment method', 'method of payment', 'medios de pago', 'methods of payment', 'zahlungsmittel'],\n    ['cross-border', 'cross border', 'ausland', 'transfronter',\n     'forbidden countr', 'zone i:', 'zona i:', 'zone ii', 'zona ii',\n     'border crossing', 'authorized countries'],\n  ];\n\n  const chunks = [];\n  const usedRanges = [];\n\n  for (const anchorGroup of anchors) {\n    let bestIdx = -1;\n    for (const kw of anchorGroup) {\n      const idx = cl.indexOf(normalize(kw));\n      if (idx >= 0 && !usedRanges.some(([s, e]) => s <= idx && idx <= e)) {\n        bestIdx = idx;\n        break;\n      }\n    }\n    if (bestIdx >= 0) {\n      const start = Math.max(0, bestIdx - 100);\n      const end   = Math.min(cleaned.length, bestIdx + WINDOW);\n      chunks.push(cleaned.substring(start, end));\n      usedRanges.push([start, end]);\n    }\n  }\n\n  if (chunks.length > 0) {\n    return chunks.join('\\n\\n[--- section ---]\\n\\n').substring(0, MAX_CHARS);\n  }\n  return cleaned.substring(0, MAX_CHARS);\n}\n\nconst processedText = preprocessText(rawText);\n\nreturn [{\n  json: {\n    processedText,\n    documentHash: hash,\n    supplier: SUPPLIER,\n    pickupCountry: COUNTRY,\n    sourceUrl: upstream.url || 'local',\n    sourceType: upstream.sourceType || 'pdf',\n    ingestedAt: new Date().toISOString(),\n    characterCount: rawText.length,\n    chunksFound: (processedText.match(/\\[--- section ---\\]/g) || []).length + 1\n  }\n}];"
       },
-      "id": "117e9f1e-f35a-421f-a46e-6f05be555a2e",
+      "id": "b4d20215-a8cd-41a4-8742-bf8a102907c1",
       "name": "Pre-process & Hash Document",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
-        128
+        864,
+        -144
       ],
-      "notes": "Works identically for all three source types — PDF, Web, and Excel extractors all produce json.text before reaching this node. Truncates to 12,000 chars, generates MD5 hash for change detection."
+      "notes": "Works identically for all three source types — PDF, Web, and Excel extractors all produce json.text and feed this node directly (no Merge node — only one branch executes per run, since Route by Source Type only fires one path, so multiple incoming connections on one input is safe). Truncates to 10,000 chars, generates MD5 hash for change detection. Supplier/country now come from Set Run Config rather than being hardcoded here."
     },
     {
       "parameters": {
         "jsCode": "// Parse LLM JSON output and apply validation rules\nconst llmResponse = $input.first().json.message?.content || $input.first().json.text || '{}';\nconst upstream = $('Pre-process & Hash Document').first().json;\n\nlet extracted;\ntry {\n  // Strip markdown fences if present (defensive)\n  const cleaned = llmResponse.replace(/```json\\n?|```\\n?/g, '').trim();\n  extracted = JSON.parse(cleaned);\n} catch(e) {\n  extracted = {\n    tpl_amount: {value: null, confidence: 'LOW', source_text: null},\n    grace_period_minutes: {value: null, confidence: 'LOW', source_text: null},\n    licence_rules: {value: null, confidence: 'LOW', source_text: null},\n    payment_rules: {value: null, confidence: 'LOW', source_text: null},\n    cross_border_conditions: {value: null, confidence: 'LOW', source_text: null}\n  };\n}\n\n// Validation rules\nconst CONFIDENCE_ORDER = ['HIGH', 'MEDIUM', 'LOW'];\nconst validationFlags = [];\n\n// Grace period sanity check\nif (extracted.grace_period_minutes?.value !== null) {\n  const gp = parseInt(extracted.grace_period_minutes.value);\n  if (isNaN(gp) || gp < 0 || gp > 480) {\n    validationFlags.push('grace_period_out_of_range');\n    extracted.grace_period_minutes.confidence = 'LOW';\n  }\n}\n\n// Count low confidence fields\nconst lowConfidenceFields = Object.entries(extracted)\n  .filter(([k, v]) => v?.confidence === 'LOW')\n  .map(([k]) => k);\n\n// Determine overall record status\nconst requiresHumanReview = lowConfidenceFields.length >= 2 || validationFlags.length > 0;\nconst overallConfidence = lowConfidenceFields.length === 0 ? 'HIGH' :\n  lowConfidenceFields.length <= 2 ? 'MEDIUM' : 'LOW';\n\n// Check if TPL is STATUTORY_MINIMUM — needs COB lookup\nconst tplNeedsCobLookup = extracted.tpl_amount?.value === 'STATUTORY_MINIMUM' ||\n  extracted.tpl_amount?.value === null;\n\nreturn [{\n  json: {\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    sourceUrl: upstream.sourceUrl,\n    documentHash: upstream.documentHash,\n    ingestedAt: upstream.ingestedAt,\n    extractedAt: new Date().toISOString(),\n    extractionModel: 'gpt-4o-mini',\n    fields: extracted,\n    overallConfidence,\n    requiresHumanReview,\n    lowConfidenceFields,\n    validationFlags,\n    tplNeedsCobLookup\n  }\n}];"
       },
-      "id": "c9c693c5-8c30-4ec6-91e0-5592be6784d5",
+      "id": "e65b7ac8-2e64-4563-8089-0fe9f3d47c5b",
       "name": "Validate & Score Extraction",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1152,
-        128
+        1568,
+        -144
       ],
       "notes": "Applies validation rules: grace period range check (0–480 min), counts low-confidence fields, determines if human review is required, flags if COB lookup is needed for TPL. In production: additional rules include cross-referencing known supplier policy patterns and checking for contradictions between fields."
     },
@@ -111,13 +164,13 @@
         },
         "options": {}
       },
-      "id": "ea4c24ea-74a9-45e3-862e-eaf8b44fd2c0",
+      "id": "4f322695-5353-44aa-9d78-697ecdd0c6ef",
       "name": "TPL needs COB lookup?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1312,
-        128
+        1728,
+        -144
       ],
       "notes": "Routes to COB lookup if TPL was not explicitly stated in the supplier document. This is the expected case for most European suppliers — they reference statutory minimum rather than stating a number."
     },
@@ -125,13 +178,13 @@
       "parameters": {
         "jsCode": "// COB 2026 statutory minimum TPL lookup table\n// Source: Council of Bureaux, Minimum Amount of Coverage 2026 (April 2026 edition)\n// Disclaimer: Figures provided for information only. COB assumes no responsibility for accuracy.\nconst COB_2026 = {\n  'DE': { personal_injury: '€7,500,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'ES': { personal_injury: '€70,000,000', property_damage: '€15,000,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'IT': { personal_injury: '€6,450,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'GB': { personal_injury: '£1,200,000', property_damage: '£1,200,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'NO': { personal_injury: 'Unlimited', property_damage: '€8,484,643', data_date: 'Dec-25', confidence: 'HIGH' },\n  'CH': { personal_injury: 'CHF 5,000,000 per claim', property_damage: null, data_date: 'Nov-24', confidence: 'HIGH' },\n  'AT': { personal_injury: null, property_damage: null, data_date: 'Oct-21', confidence: 'NONE', note: 'No data submitted to COB — manual verification required' },\n  'FR': { personal_injury: 'Unlimited', property_damage: 'Unlimited', data_date: 'Mar-22', confidence: 'MEDIUM', note: 'Unlimited — not displayable as a numeric value' },\n  'NL': { personal_injury: '€6,070,000', property_damage: '€1,220,000', data_date: 'Nov-20', confidence: 'MEDIUM', note: 'Stale — data from Nov-20' },\n  'BE': { personal_injury: '€129,550,507', property_damage: 'Unlimited', data_date: 'Dec-25', confidence: 'HIGH' },\n  'PL': { personal_injury: '€5,210,000', property_damage: '€1,050,000', data_date: 'Dec-25', confidence: 'HIGH' },\n  'PT': { personal_injury: '€6,450,000', property_damage: '€1,300,000', data_date: 'Dec-25', confidence: 'HIGH' }\n};\n\nconst country = $json.pickupCountry?.toUpperCase();\nconst cobData = COB_2026[country];\n\nlet tplResolved;\nif (cobData && cobData.confidence !== 'NONE') {\n  tplResolved = {\n    value: `Personal injury: ${cobData.personal_injury} | Property damage: ${cobData.property_damage || 'see COB'}`,\n    confidence: cobData.confidence,\n    source: `COB Minimum Amount of Coverage 2026 (data date: ${cobData.data_date})`,\n    source_url: 'https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf',\n    disclaimer: 'Figures provided for information only. COB assumes no responsibility for accuracy or future changes.',\n    note: cobData.note || null\n  };\n} else {\n  tplResolved = {\n    value: null,\n    confidence: 'NONE',\n    source: 'COB 2026',\n    source_url: 'https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf',\n    disclaimer: 'No COB data available for this country — manual verification required.',\n    note: cobData?.note || 'Country not found in COB 2026 dataset'\n  };\n}\n\n// Merge COB result into the fields\nconst updatedFields = { ...$json.fields };\nupdatedFields.tpl_amount = {\n  ...updatedFields.tpl_amount,\n  ...tplResolved,\n  resolution_method: 'COB_LOOKUP'\n};\n\nreturn [{ json: { ...$json, fields: updatedFields, tplResolvedViaCob: true } }];"
       },
-      "id": "4af65c0e-6379-494b-a26a-3bc0b88dda11",
+      "id": "e3dea3e9-dae2-4ea6-9753-61b163e4c3fe",
       "name": "COB 2026 Statutory Minimum Lookup",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1536,
-        0
+        1952,
+        -272
       ],
       "notes": "Looks up the statutory minimum TPL amount from the COB 2026 reference table for the pickup country. In production: this table is maintained as a database table, updated monthly by monitoring cobx.org for new editions. The COB disclaimer is included in every API response that references COB data."
     },
@@ -159,13 +212,13 @@
         },
         "options": {}
       },
-      "id": "cf61b6b1-d466-4267-a4d1-d6d879d04ee1",
+      "id": "71f10c05-a0d1-4f0e-a5ec-28e06eb4ce1f",
       "name": "Requires human review?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1536,
-        224
+        1952,
+        -48
       ],
       "notes": "Routes records with 2+ LOW confidence fields or validation flags to the human review queue. Records with HIGH or MEDIUM overall confidence proceed directly to the knowledge base."
     },
@@ -174,13 +227,13 @@
         "subject": "=TermsIQ: Human Review Required — {{ $json.supplier }} / {{ $json.pickupCountry }}",
         "options": {}
       },
-      "id": "f5c7a2a1-3b1f-47f7-beb8-16a97cb4eb07",
+      "id": "82d35c4c-308d-426a-92fa-6b7a63f4e362",
       "name": "Send to Human Review Queue",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1760,
-        0
+        2176,
+        -272
       ],
       "webhookId": "cc629210-f6ad-4be9-85f1-d72be9d40544",
       "disabled": true,
@@ -190,27 +243,27 @@
       "parameters": {
         "jsCode": "// Build the final API-ready output record\n// This is what gets written to the T&C knowledge base\n// and served via the aggregator API\n\nconst record = {\n  // Identity\n  record_id: `${$json.supplier}-${$json.pickupCountry}-${Date.now()}`,\n  supplier: $json.supplier,\n  pickup_country: $json.pickupCountry,\n  \n  // Provenance\n  source_url: $json.sourceUrl,\n  document_hash: $json.documentHash,\n  ingested_at: $json.ingestedAt,\n  extracted_at: $json.extractedAt,\n  extraction_model: $json.extractionModel,\n  \n  // Status\n  overall_confidence: $json.overallConfidence,\n  status: 'APPROVED_AUTO', // auto-approved; human-reviewed records use 'APPROVED_HUMAN'\n  \n  // The five critical T&C fields\n  fields: {\n    tpl_amount: $json.fields.tpl_amount,\n    grace_period_minutes: $json.fields.grace_period_minutes,\n    licence_rules: $json.fields.licence_rules,\n    payment_rules: $json.fields.payment_rules,\n    cross_border_conditions: $json.fields.cross_border_conditions\n  },\n  \n  // API metadata for downstream OTA consumption\n  api_metadata: {\n    extraction_method: 'AI',\n    model_provider: 'OpenAI GPT-4o',\n    data_disclaimer: 'T&C data is AI-extracted from supplier documents. Always verify critical information with the supplier directly.',\n    last_updated: $json.extractedAt\n  }\n};\n\nconsole.log('TermsIQ record ready for knowledge base:', JSON.stringify(record, null, 2));\n\nreturn [{ json: record }];"
       },
-      "id": "5a570809-bd6b-43d2-9296-5f05bccce845",
+      "id": "c8c7fab6-d25b-4bb0-9242-d3743b5110c2",
       "name": "Build API-ready Record",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
-        240
+        2176,
+        -32
       ],
       "notes": "Assembles the final structured record in the schema that will be written to the T&C knowledge base and served via the aggregator API. In production: this record is written to PostgreSQL keyed by supplier × pickup_country × field_type, with full version history retained."
     },
     {
       "parameters": {
-        "jsCode": "\n// Detect source type from URL extension or explicit config\n// In production: read from a supplier config table\nconst url = ($input.first().json.url || '').toLowerCase();\n\nlet sourceType = 'pdf'; // default\nif (url.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.csv')) {\n  sourceType = 'excel';\n} else if (url.endsWith('.html') || url.endsWith('.htm') ||\n           url.includes('/pages/') || url.includes('/mietbedingungen') ||\n           url.includes('/terms') || url.includes('/informacion')) {\n  sourceType = 'web';\n}\n\n// Allow explicit override via a field set in the trigger/config\nconst explicitType = $input.first().json.sourceType;\nif (explicitType && ['pdf', 'web', 'excel'].includes(explicitType)) {\n  sourceType = explicitType;\n}\n\nconst binaryData = $input.first().binary;\nconst rawBytes   = binaryData ? Object.values(binaryData)[0] : null;\n\nreturn [{\n  json: {\n    sourceType,\n    url: $input.first().json.url || '',\n    supplier: $input.first().json.supplier || 'Unknown',\n    pickupCountry: $input.first().json.pickupCountry || 'XX',\n    binaryKey: rawBytes ? Object.keys(binaryData)[0] : null,\n  },\n  binary: binaryData || {}\n}];\n"
+        "jsCode": "// Detect source type from URL extension or explicit override\n// In production: read from a supplier config table\nconst cfg = $('Set Run Config').first().json;\nconst url = (cfg.url || '').toLowerCase();\n\nlet sourceType = 'pdf'; // default\nif (url.endsWith('.xlsx') || url.endsWith('.xls') || url.endsWith('.csv')) {\n  sourceType = 'excel';\n} else if (url.endsWith('.html') || url.endsWith('.htm') ||\n           url.includes('/pages/') || url.includes('/mietbedingungen') ||\n           url.includes('/terms') || url.includes('/informacion')) {\n  sourceType = 'web';\n}\n\n// Allow explicit override from Set Run Config (skip if left as 'auto')\nif (cfg.sourceType && cfg.sourceType !== 'auto' && ['pdf', 'web', 'excel'].includes(cfg.sourceType)) {\n  sourceType = cfg.sourceType;\n}\n\nconst binaryData = $input.first().binary;\nconst rawBytes   = binaryData ? Object.values(binaryData)[0] : null;\n\nreturn [{\n  json: {\n    sourceType,\n    url: cfg.url,\n    supplier: cfg.supplier,\n    pickupCountry: cfg.pickupCountry,\n    binaryKey: rawBytes ? Object.keys(binaryData)[0] : null,\n  },\n  binary: binaryData || {}\n}];"
       },
-      "id": "662dfd2f-370b-45dc-9f17-2c18582dc9c5",
+      "id": "bc3d1a42-9bd3-4111-a278-ec3869e94d2f",
       "name": "Detect Source Type",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -448,
-        128
+        -32,
+        -144
       ],
       "notes": "Detects source type from the URL or explicit override. Outputs sourceType: 'pdf' | 'web' | 'excel'. In production this is set per supplier in a config table."
     },
@@ -291,57 +344,43 @@
         },
         "options": {}
       },
-      "id": "1487fd1c-e435-4658-a9a3-08c47e8e8e89",
+      "id": "efdaec34-8c9b-4fe6-9120-7efb74225eec",
       "name": "Route by Source Type",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        -224,
-        128
+        192,
+        -144
       ],
       "notes": "Routes to PDF, Web, or Excel extractor based on detected source type."
     },
     {
       "parameters": {
-        "jsCode": "\n// Extract clean text from HTML content\n// Strips tags, scripts, nav, and excess whitespace\nconst raw = $input.first().json.data || $input.first().json.text || '';\n\n// Remove script and style blocks\nlet text = raw\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, ' ')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, ' ')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, ' ');\n\n// Replace block-level tags with newlines\ntext = text\n  .replace(/<\\/(p|div|h[1-6]|li|tr|td|th|br)>/gi, '\\n')\n  .replace(/<br\\s*\\/?>/gi, '\\n');\n\n// Strip remaining tags\ntext = text.replace(/<[^>]+>/g, ' ');\n\n// Decode common HTML entities\ntext = text\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&euro;/g, '€')\n  .replace(/&#8364;/g, '€')\n  .replace(/&auml;/g, 'ä')\n  .replace(/&ouml;/g, 'ö')\n  .replace(/&uuml;/g, 'ü')\n  .replace(/&szlig;/g, 'ß');\n\n// Clean whitespace\ntext = text\n  .split('\\n')\n  .map(l => l.trim())\n  .filter(l => l.length > 0)\n  .join('\\n');\n\nconst upstream = $input.first().json;\nreturn [{\n  json: {\n    text,\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
+        "jsCode": "\n// Extract clean text from HTML content\n// Strips tags, scripts, nav, and excess whitespace\n// Fetch Supplier Document uses responseFormat: 'file', so the HTML content\n// arrives as binary, not as a plain string in .json.data/.json.text.\n// Use n8n's binary helper rather than reading .data directly — direct property\n// access only reliably holds the full payload in memory-mode binary storage;\n// this helper works regardless of memory / filesystem / S3 storage mode.\nconst binaryData = $input.first().binary;\nlet raw = '';\nif (binaryData) {\n  const binaryKey = Object.keys(binaryData)[0];\n  const buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\n  let decoded = buf.toString('utf-8');\n  // Many supplier pages (Sixt's included — confirmed charset=ISO-8859-1) aren't UTF-8.\n  // A failed UTF-8 decode shows up as replacement characters; if we see one, the source\n  // wasn't really UTF-8, so re-decode as Latin-1 instead.\n  if (decoded.includes('\\uFFFD')) {\n    decoded = buf.toString('latin1');\n  }\n  raw = decoded;\n} else {\n  raw = $input.first().json.data || $input.first().json.text || '';\n}\n\n// Remove script and style blocks\nlet text = raw\n  .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<nav[^>]*>[\\s\\S]*?<\\/nav>/gi, ' ')\n  .replace(/<footer[^>]*>[\\s\\S]*?<\\/footer>/gi, ' ')\n  .replace(/<header[^>]*>[\\s\\S]*?<\\/header>/gi, ' ');\n\n// Replace block-level tags with newlines\ntext = text\n  .replace(/<\\/(p|div|h[1-6]|li|tr|td|th|br)>/gi, '\\n')\n  .replace(/<br\\s*\\/?>/gi, '\\n');\n\n// Strip remaining tags\ntext = text.replace(/<[^>]+>/g, ' ');\n\n// Decode common HTML entities\ntext = text\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&euro;/g, '€')\n  .replace(/&#8364;/g, '€')\n  .replace(/&auml;/g, 'ä')\n  .replace(/&ouml;/g, 'ö')\n  .replace(/&uuml;/g, 'ü')\n  .replace(/&szlig;/g, 'ß');\n\n// Clean whitespace\ntext = text\n  .split('\\n')\n  .map(l => l.trim())\n  .filter(l => l.length > 0)\n  .join('\\n');\n\nconst upstream = $input.first().json;\nreturn [{\n  json: {\n    text,\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
       },
-      "id": "44e9fe88-0928-45e3-b24c-8489e6f1b97f",
+      "id": "dc511531-c640-4a71-99ee-6574c34b09ae",
       "name": "Extract Text — Web/HTML",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        192
+        416,
+        -80
       ],
-      "notes": "Strips HTML tags, navigation, scripts, and footers from web page content. Extracts clean readable text. In production: uses a dedicated HTML-to-text library (e.g. BeautifulSoup via a Python function node) for better fidelity."
+      "notes": "Strips tags, scripts, nav, header, and footer; decodes common HTML entities; cleans whitespace. Reads from binary, with a UTF-8-first / Latin-1-fallback decode since supplier pages aren't consistently UTF-8 (Sixt's ES/DE terms pages serve ISO-8859-1)."
     },
     {
       "parameters": {
-        "jsCode": "\n// Extract text from Excel binary\n// n8n stores binary data in the binary property\n// We convert the binary to base64 and parse with a simple approach\n// In production: use a dedicated Excel parsing library\n\nconst upstream = $input.first().json;\n\n// For the POC: if the file is a CSV or plain-text Excel export,\n// we can parse it directly. For binary .xlsx we output a placeholder\n// that demonstrates the flow without requiring a full xlsx parser.\n\nconst binaryData = $input.first().binary;\nlet text = '';\n\nif (binaryData) {\n  // Try to decode as UTF-8 text (works for CSV and some Excel exports)\n  try {\n    const binaryKey = Object.keys(binaryData)[0];\n    const base64 = binaryData[binaryKey].data;\n    const decoded = Buffer.from(base64, 'base64').toString('utf-8');\n    \n    if (decoded.includes(',') || decoded.includes('\\t')) {\n      // Looks like CSV/TSV — parse rows\n      const rows = decoded.split('\\n')\n        .map(r => r.trim())\n        .filter(r => r.length > 0);\n      text = '## Sheet: Rental Conditions\\n' + rows.join('\\n');\n    } else if (decoded.includes('<')) {\n      // Excel XML format — strip tags\n      text = decoded.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n    } else {\n      text = decoded;\n    }\n  } catch(e) {\n    text = '[Excel binary detected — requires openpyxl or SheetJS parser in production]';\n  }\n} else if (upstream.text) {\n  text = upstream.text;\n}\n\nreturn [{\n  json: {\n    text: text || '[No Excel content extracted]',\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
+        "jsCode": "\n// Extract text from Excel binary\n// n8n stores binary data in the binary property\n// We convert the binary to base64 and parse with a simple approach\n// In production: use a dedicated Excel parsing library\n\nconst upstream = $input.first().json;\n\n// For the POC: if the file is a CSV or plain-text Excel export,\n// we can parse it directly. For binary .xlsx we output a placeholder\n// that demonstrates the flow without requiring a full xlsx parser.\n\nconst binaryData = $input.first().binary;\nlet text = '';\n\nif (binaryData) {\n  // Try to decode as UTF-8 text (works for CSV and some Excel exports)\n  try {\n    const binaryKey = Object.keys(binaryData)[0];\n    const buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\n    const decoded = buf.toString('utf-8');\n    \n    if (decoded.includes(',') || decoded.includes('\\t')) {\n      // Looks like CSV/TSV — parse rows\n      const rows = decoded.split('\\n')\n        .map(r => r.trim())\n        .filter(r => r.length > 0);\n      text = '## Sheet: Rental Conditions\\n' + rows.join('\\n');\n    } else if (decoded.includes('<')) {\n      // Excel XML format — strip tags\n      text = decoded.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n    } else {\n      text = decoded;\n    }\n  } catch(e) {\n    text = '[Excel binary detected — requires openpyxl or SheetJS parser in production]';\n  }\n} else if (upstream.text) {\n  text = upstream.text;\n}\n\nreturn [{\n  json: {\n    text: text || '[No Excel content extracted]',\n    characterCount: text.length,\n    sourceType: upstream.sourceType,\n    supplier: upstream.supplier,\n    pickupCountry: upstream.pickupCountry,\n    url: upstream.url,\n  }\n}];\n"
       },
-      "id": "403b6892-be3e-45de-9472-66374164d9cf",
+      "id": "aa3c774d-802d-449f-950c-aac889258986",
       "name": "Extract Text — Excel",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        384
+        416,
+        112
       ],
-      "notes": "Reads all sheets from an Excel/CSV binary and converts to readable text. Sheet name is used as a section header. In production: supplier-specific column mapping handles structured Excel feeds."
-    },
-    {
-      "parameters": {
-        "mode": "chooseBranch"
-      },
-      "id": "fe85075b-a30e-4fad-bc51-aa55d7dea87b",
-      "name": "Merge — All Source Types",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        224,
-        128
-      ],
-      "notes": "Merges output from PDF, Web, and Excel extractors into a single stream. All branches produce the same JSON shape: { text, sourceType, supplier, pickupCountry, url }. The downstream Pre-process node handles all three identically."
+      "notes": "Extract text from Excel binary, using n8n's getBinaryDataBuffer helper rather than direct .data property access (same fix applied to Extract Text — Web/HTML, for the same reason — direct access isn't reliable across binary storage modes). For the POC: CSV/TSV and Excel-XML exports are parsed; true binary .xlsx still falls back to a placeholder string, noted as needing a real parser (openpyxl/SheetJS) in production."
     },
     {
       "parameters": {
@@ -350,10 +389,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1968,
-        240
+        2384,
+        -32
       ],
-      "id": "577959d8-ecc1-42cc-be64-e464140dfbd1",
+      "id": "89c38748-eb67-4b0c-9a6a-76966c759194",
       "name": "Save Output to File"
     },
     {
@@ -379,13 +418,13 @@
           "temperature": 0
         }
       },
-      "id": "39c39c1b-8b6d-4973-8823-b98c7cbef758",
+      "id": "39080bf0-6dec-482f-a09c-98cee97b09bd",
       "name": "OpenAI GPT-4o-mini — Extract T&C Fields",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.4,
       "position": [
-        880,
-        128
+        1296,
+        -144
       ],
       "credentials": {
         "openAiApi": {
@@ -397,29 +436,24 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build prompts for OpenAI\nconst data = $input.first().json;\n\nconst systemPrompt = `You are a car rental T&C extraction specialist. Extract exactly 5 fields from the document. Return ONLY valid JSON, no explanation.\n\nFields:\n1. tpl_amount: TPL coverage amount OR \"STATUTORY_MINIMUM\" if document says meets legal requirements. null if absent.\n2. grace_period_minutes: integer minutes reservation held after pickup time. null if absent.\n3. licence_rules: what licences accepted/rejected/need IDP. null if no dedicated licence section.\n4. payment_rules: which card types accepted/rejected. NOT deposit amounts.\n5. cross_border_conditions: permitted/forbidden countries, penalties.\n\nConfidence: HIGH=explicit, MEDIUM=implied, LOW=absent.\nsource_text: verbatim quote max 80 chars or null.\n\nHertz note: licence_rules and grace_period_minutes are absent from main PDF - return null+LOW. payment_rules and cross_border_conditions ARE present - extract them.\nGoldcar note: grace period = garantizara tu reserva = 360 min.`;\n\nconst userPrompt = `Extract from this Supplier: ${data.supplier} | Country: ${data.pickupCountry}\n\nDOCUMENT:\n${data.processedText}\n\nReturn ONLY this JSON structure:\n{\"tpl_amount\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"grace_period_minutes\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"licence_rules\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"payment_rules\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"cross_border_conditions\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null}}`;\n\nreturn [{ json: { ...data, builtSystemPrompt: systemPrompt, builtUserPrompt: userPrompt } }];"
+        "jsCode": "// Build prompts for OpenAI\nconst data = $input.first().json;\n\nconst baseSystemPrompt = `You are a car rental T&C extraction specialist. Extract exactly 5 fields from the document. Return ONLY valid JSON, no explanation.\n\nFields:\n1. tpl_amount: extract the EXPLICIT coverage amount if the document states one, even when it's embedded in a longer sentence (e.g. \"...seguro de responsabilidad civil con una suma maxima asegurada... EUR 85 Mio...\" means the value is \"EUR 85,000,000\" or similar — pull the number out of the sentence, don't require it to stand alone). Use \"STATUTORY_MINIMUM\" only if the document says it meets legal/statutory requirements without giving a number. null only if TPL coverage isn't mentioned at all.\n2. grace_period_minutes: integer minutes reservation held after pickup time. null if absent.\n3. licence_rules: what licences accepted/rejected/need IDP. null if no dedicated licence section.\n4. payment_rules: which card types are accepted/rejected (e.g. credit, debit, prepaid, specific brands). Extract this even when the same passage also mentions a deposit amount — just omit the deposit FIGURE itself from your answer (e.g. skip \"EUR 200\"), don't skip the whole field because a figure is nearby. \"NOT deposit amounts\" means exclude the number, not the field.\n5. cross_border_conditions: permitted/forbidden countries, penalties.\n\nConfidence: HIGH=explicit, MEDIUM=implied, LOW=absent.\nsource_text: verbatim quote max 80 chars or null.`;\n\n// Supplier-specific hints — only injected for the supplier they actually apply to.\n// Previously these were unconditional for every run, which told the model\n// licence_rules/grace_period were \"absent\" even when processing Sixt or Goldcar,\n// actively suppressing correct extraction for suppliers where the content exists.\nconst SUPPLIER_HINTS = {\n  'Hertz': 'Hertz note: licence_rules and grace_period_minutes are typically absent from the main PDF - return null+LOW for those if genuinely not found. payment_rules and cross_border_conditions ARE present in Hertz documents - extract them.',\n  'Goldcar': 'Goldcar note: grace period = garantizara tu reserva = 360 min.',\n};\nconst hint = SUPPLIER_HINTS[data.supplier] || '';\nconst systemPrompt = hint ? `${baseSystemPrompt}\\n\\n${hint}` : baseSystemPrompt;\n\nconst userPrompt = `Extract from this Supplier: ${data.supplier} | Country: ${data.pickupCountry}\n\nDOCUMENT:\n${data.processedText}\n\nReturn ONLY this JSON structure:\n{\"tpl_amount\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"grace_period_minutes\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"licence_rules\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"payment_rules\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null},\"cross_border_conditions\":{\"value\":null,\"confidence\":\"LOW\",\"source_text\":null}}`;\n\nreturn [{ json: { ...data, builtSystemPrompt: systemPrompt, builtUserPrompt: userPrompt } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        656,
-        128
+        1072,
+        -144
       ],
-      "id": "b5c05521-771b-4121-a15e-b7994320e6d6",
-      "name": "Build Extraction Prompt"
+      "id": "06020f7e-f35e-4646-b35d-abe6877021ef",
+      "name": "Build Extraction Prompt",
+      "notes": "Builds the system + user prompt for the OpenAI call. Supplier hints are now conditional on data.supplier — Sixt and any other supplier without a matching hint gets the plain base prompt, with no Hertz-specific 'these fields are absent' instruction bleeding into their extraction."
     }
   ],
   "pinData": {},
   "connections": {
     "Schedule Trigger (Daily 08:00)": {
       "main": [
-        [
-          {
-            "node": "Fetch Supplier Document (PDF / Web / Excel)",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Fetch Supplier Document (PDF / Web / Excel)": {
@@ -473,7 +507,7 @@
       "main": [
         [
           {
-            "node": "Merge — All Source Types",
+            "node": "Pre-process & Hash Document",
             "type": "main",
             "index": 0
           }
@@ -481,11 +515,6 @@
       ]
     },
     "Extract Text — Web/HTML": {
-      "main": [
-        []
-      ]
-    },
-    "Merge — All Source Types": {
       "main": [
         [
           {
@@ -551,6 +580,11 @@
       "main": [
         [
           {
+            "node": "Send to Human Review Queue",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Build API-ready Record",
             "type": "main",
             "index": 0
@@ -597,6 +631,39 @@
           }
         ]
       ]
+    },
+    "Set Run Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Supplier Document (PDF / Web / Excel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text — Excel": {
+      "main": [
+        [
+          {
+            "node": "Pre-process & Hash Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Set Run Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -604,11 +671,11 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "cc30e68b-3bee-460a-91ba-62d7db7fb689",
+  "versionId": "ad8612fa-5d09-42e3-8727-52d731767f0a",
   "meta": {
     "instanceId": "716580243aaf5a60c7089aee8815af3691e968aaf4719571800919c565bab42e"
   },
-  "id": "g5f2dLsE5LI8ggtF",
+  "id": "3KoDVH4INrJmc2Q0",
   "tags": [
     {
       "updatedAt": "2026-06-15T12:17:27.130Z",

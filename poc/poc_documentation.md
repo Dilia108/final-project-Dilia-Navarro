@@ -1,6 +1,8 @@
 # TermsIQ POC Documentation
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
-Version 1.3 — June 2026
+Version 1.4 — June 2026
+
+> **Version 1.4 note:** the original live testing below (TC-01 through TC-04) was run via the Python script — that's still accurate and unchanged. A separate hardening pass on `poc_workflow.json` specifically followed, since the n8n track's Web/HTML and Excel branches turned out to have real extraction code that was never actually wired into the rest of the pipeline — meaning the "three source types handled live" claim in the Overview below was true for the Python script but not yet true for n8n until this pass. See **"n8n Workflow Hardening — June 2026"** below for what changed and a separate n8n-specific test results section.
 
 ---
 
@@ -18,7 +20,7 @@ For each source the pipeline:
 7. Compares extraction against manually verified ground truth (with `--validate`)
 8. Outputs a single structured JSON record ready for API serving
 
-**Demo recording:** [Watch end-to-end POC demo (Loom)](https://www.loom.com/share/d09135f07ea847899d64e34682d6b8fe)
+**Demo recording:** [Watch end-to-end POC demo (Loom)](https://www.loom.com/share/5a7d0c270fb84a4cab1ce09b81e146ab)
 
 ---
 
@@ -39,13 +41,21 @@ For each source the pipeline:
 ### n8n Workflow (`poc_workflow.json`)
 
 ```
-[Schedule Trigger]
-       │
-       ▼
+[Schedule Trigger]      [On form submission]    ← two entry points; only one fires per run
+   (Daily 08:00)         (manual, dropdown:
+       │                  hertz_es/hertz_de/
+       │                  sixt_es/sixt_de)
+       │                       │
+       └───────────┬───────────┘
+                    ▼
+          [Set Run Config]        ← single source of truth: supplier, country, url,
+                    │                sourceType. Reads the form's selection if that's
+                    │                what triggered the run, else uses a default preset.
+                    ▼
 [Fetch Supplier Document]      ← HTTP GET (PDF URL or web page URL)
        │
        ▼
-[Detect Source Type]           ← Infers 'pdf' / 'web' / 'excel' from URL extension
+[Detect Source Type]           ← Infers 'pdf' / 'web' / 'excel' from URL, or explicit override
        │
        ▼
 [Route by Source Type]         ← Switch node — 3 output branches
@@ -55,12 +65,9 @@ For each source the pipeline:
   — PDF]        — Web/HTML]    — Excel]
        │             │            │
        └─────────────┴────────────┘
-                     │
-                     ▼
-[Merge — All Source Types]
-                     │
-                     ▼
-[Pre-process & Hash Document]  ← Multi-anchor section detection, MD5 hash
+                     │              ← all three feed the same node directly (no Merge
+                     ▼                 step — only one branch ever executes per run,
+[Pre-process & Hash Document]         since the Switch only fires one path)
                      │
                      ▼
 [OpenAI GPT-4o-mini Extract]   ← 5 T&C fields as structured JSON
@@ -80,12 +87,16 @@ For each source the pipeline:
    YES │               NO │
        ▼                  ▼
 [Email review queue]  [Build API Record]
-                            │
-                            ▼
-                      [Store in KB]
+  AND  │                    │
+       └────────┬───────────┘
+                 ▼
+        [Build API Record]
+                 │
+                 ▼
+          [Store in KB]
 ```
 
-The workflow contains **17 nodes** including source-type detection and three parallel extraction branches that converge before the LLM step.
+The workflow contains **18 nodes** (in the distributed `poc_workflow.json`) plus the Form Trigger, which was added directly in the live n8n canvas rather than baked into the exported file — see the note under Files in This POC Package.
 
 ### Python Script (`termsiq_poc.py`) — 8 Steps
 
@@ -117,7 +128,46 @@ Writes `termsiq_output.json`. With `--validate`, embeds field-by-field compariso
 
 ---
 
-## What AI Capability Is Demonstrated
+## n8n Workflow Hardening — June 2026
+
+The Python script and the n8n workflow were built from the same design, but only the Python script's three-source-type claim had actually been exercised live. Tracing the n8n workflow's connection graph turned up several issues that only surface once you actually run real documents through it — each is recorded here with what broke, what the evidence was, and what fixed it, since these are the kind of gotchas worth knowing about if this workflow is extended further.
+
+**Web/HTML and Excel branches existed but were never wired to anything.** The Switch node correctly routed to all three extraction branches, and the Web/HTML node in particular had genuinely good HTML-stripping code — but its output connection was an empty array, a true dead end. Excel had no outgoing connection at all. Every run silently fell through to PDF-only behavior regardless of what source type was actually being processed. Fixed by connecting all three extraction nodes directly into `Pre-process & Hash Document`, removing the `Merge — All Source Types` node entirely (it was in an ambiguous `chooseBranch` mode with no branch-selection configuration, which would likely have just defaulted to input 0 regardless of which branch actually ran).
+
+**Binary data wasn't being read reliably.** Once the Web/HTML branch was wired in, a live Sixt ES test produced an empty string — `characterCount: 0` — despite a 76KB file clearly being fetched. The cause: `Fetch Supplier Document` returns binary (not a plain-text JSON field), and the code was reading `binaryData[binaryKey].data` directly, which only reliably holds the full payload when n8n is using in-memory binary storage. Switched to n8n's `getBinaryDataBuffer()` helper, which works regardless of storage mode. A second attempt still produced garbled, suspiciously short output (9 characters) before this fix was identified — that 9-character result, much shorter than the source file, was the actual evidence that ruled out an encoding problem and pointed at the binary-read method instead.
+
+**Sixt's pages aren't UTF-8.** Once binary reading worked, Spanish/German accented characters still came through corrupted on some runs. Sixt's ES and DE terms pages serve `charset=ISO-8859-1`, confirmed from the original Python POC's own terminal output for the same URL. Added a UTF-8-first decode with a Latin-1 fallback, triggered when the UTF-8 decode contains replacement characters.
+
+**Hertz-specific prompt hints were contaminating every other supplier's extraction.** The system prompt unconditionally told the model "licence_rules and grace_period_minutes are absent from main PDF — return null+LOW" on every single run, regardless of which supplier was actually being processed. Sixt's `licence_rules` is genuinely present and extractable, but this instruction suppressed it anyway. Made supplier hints conditional on the actual `supplier` field, keyed per supplier rather than sent unconditionally — the same per-supplier over-suppression problem documented in Key Finding #4 below, just not yet applied to the n8n track until now.
+
+**Explicit TPL figures embedded in a sentence weren't being extracted.** Sixt's primary document states "EUR 85 Mio" inline within a longer sentence about liability insurance, not as a standalone figure. The field instruction had no example of this shape, and the model returned null, letting the COB statutory-minimum lookup silently overwrite Sixt's real €85M figure with Spain's generic €70M minimum — a worse outcome than a null would have been, since it looked like a successful, confident result while actually being wrong. Added a worked example to the `tpl_amount` instruction showing extraction from embedded text.
+
+**`payment_rules` nulled out specifically on documents with deposit-amount language nearby.** The instruction said "NOT deposit amounts" with no positive example, and on Hertz's documents — which mention a specific deposit figure prominently — the model appeared to read this as "skip the field" rather than "skip just the figure." Clarified the instruction to say explicitly that the field should still be extracted, just with the deposit figure itself omitted.
+
+**A generic anchor keyword matched a low-information sentence instead of the real content.** Even after the prompt fix above, Sixt DE's `payment_rules` still nulled. The actual processed text showed why: the only German payment keyword in the section-anchor list, `'zahlungsmittel'`, matched a single generic sentence ("present an accepted means of payment") rather than the document's actual detailed card-brand paragraph elsewhere in the text. Added more specific German terms (`'kredit- und debit'`, `'debitkarten'`, `'kreditkarten'`) ahead of the generic fallback in the keyword priority list, so a more informative match wins when one exists.
+
+**The human review email was unreachable regardless of confidence.** Both outputs of the `Requires human review?` IF node fed only `Build API-ready Record` — the review-queue email node had no path that could ever reach it. Fixed so the true branch reaches both the email and the record-builder. The email node itself remains intentionally disabled, since SMTP isn't configured for this demo environment — enabling it is a deliberate decision for whenever real review-queue testing is needed, not something to flip on by default.
+
+**Testing no longer requires editing code.** Originally, switching test cases meant manually editing two independent hardcoded values — the URL string in `Fetch Supplier Document` and a separate `SUPPLIER`/`COUNTRY` constant inside `Pre-process & Hash Document` — which could drift out of sync with each other. A new `Set Run Config` node now holds named presets (`hertz_es`, `hertz_de`, `sixt_es`, `sixt_de`) as the single source of truth, switchable with one line. A `Form Trigger` ("On form submission") goes further, presenting a literal dropdown to pick a test case without opening any code at all — `Set Run Config` reads the form's selection when that's what triggered the run, falling back to a default preset for Schedule Trigger runs.
+
+---
+
+## Live n8n Workflow Test Results (June 2026)
+
+These are runs through `poc_workflow.json` specifically, after the hardening pass above — distinct from the Python script results in the next section, which were already passing before this session and are unchanged.
+
+| Supplier/Country | Source type | TPL | Grace period | Licence rules | Payment rules | Cross-border |
+|---|---|---|---|---|---|---|
+| Hertz ES | PDF | HIGH (COB) | null (correct — absent) | null (correct — absent) | HIGH | HIGH |
+| Hertz DE | PDF | HIGH (COB) | null (correct — absent) | null (correct — absent) | HIGH | HIGH |
+| Sixt ES | Web/HTML | HIGH (explicit €85M) | null* | HIGH | HIGH | HIGH |
+| Sixt DE | Web/HTML | HIGH (explicit €100M) | null* | HIGH | HIGH | HIGH |
+
+*Grace period nulling for Sixt is expected, not a bug — the Python pipeline only ever resolved this field via a secondary help-center source, and this n8n workflow fetches one document per run with no multi-source resolution loop (see Known Limitations).
+
+All four combinations above were confirmed across repeat runs, including a final re-test of Sixt DE's `payment_rules` after the anchor-keyword fix — it now correctly returns the full card-brand detail ("Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB...") rather than the generic one-line fallback. Every field that's structurally present in the primary document is now resolving correctly across both suppliers and both source types tested. Goldcar and the Excel branch remain genuinely untested through this workflow: Goldcar's primary source is JS-rendered, and this n8n workflow has no headless-browser or PDF-fallback logic for that case (the Python script handles it; this workflow doesn't yet), so it's expected to fail differently than the Sixt issues above, not the same way. The Excel branch has the same binary-read fix applied but has never actually been executed against a real file.
+
+---
 
 | Capability | How demonstrated |
 |---|---|
@@ -293,8 +343,9 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 ### Import n8n workflow
 1. Open n8n → **+** → **Import from file** → select `poc_workflow.json`
 2. Configure credentials: OpenAI API key, SMTP for review emails (SMTP was deactivated for the demo)
-3. Update the **Fetch Supplier Document** node URL to your target supplier
-4. Click **Execute Workflow**
+3. To switch test case: open `Set Run Config` and change `ACTIVE_PRESET` to one of `hertz_es` / `hertz_de` / `sixt_es` / `sixt_de` — no need to touch the Fetch node directly
+4. Optional: add an `On form submission` Form Trigger node with a "Test Case" dropdown (same four options) for switching test cases without opening any code — see `Set Run Config`'s comments for how it reads the form's selection
+5. Click **Execute Workflow**
 
 ---
 
@@ -302,7 +353,7 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 
 | File | Description |
 |---|---|
-| `poc_workflow.json` | n8n workflow — 17 nodes, importable directly into n8n |
+| `poc_workflow.json` | n8n workflow — 18 nodes as exported, importable directly into n8n. Does **not** include the `On form submission` Form Trigger node — that was added directly in the live n8n canvas and isn't baked into this file, since its exact schema varies enough across n8n versions that hand-authoring it risked a broken import. If re-exporting from a canvas that has it, the file will correctly show 19 nodes; `Set Run Config`'s code already references it by name and falls back gracefully if it's absent. |
 | `termsiq_poc.py` | Standalone Python script — PDF, web, and JS-rendered page source types |
 | `sample_tc.txt` | Sample T&C text file for demo mode (Hertz ES simplified) |
 | `termsiq_output.json` | Sample output from live run with `--validate` block embedded |
@@ -312,4 +363,4 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 
 ---
 
-*TermsIQ POC Documentation — Version 1.3 — June 2026*
+*TermsIQ POC Documentation — Version 1.4 — June 2026*
