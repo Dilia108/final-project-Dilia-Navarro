@@ -96,7 +96,7 @@
           "enriched_confidence": "MEDIUM",
           "source_text": null,
           "document_heading": "Not found in primary PDF",
-          "annotation_note": "ABSENT from PDF. Multi-document problem: grace period in Hertz FAQ only. Policy: 59 minutes. Not stated in ES-specific PDF.",
+          "annotation_note": "ABSENT from PDF. Multi-document problem: grace period in Hertz FAQ only. Policy: 59 minutes. Not stated in ES-specific PDF. CONFIRMED (ES): no Hertz-only source exists for this field — annotation team to reach out to the supplier directly to obtain an authoritative answer. Until then this field correctly surfaces as 'needs supplier confirmation', not a guessed value.",
           "multi_document": true,
           "validation_keywords": [
             "null",
@@ -118,7 +118,9 @@
           "validation_keywords": [
             "null",
             "none"
-          ]
+          ],
+          "resolution_status": "SUPPLIER_CURATED",
+          "supplier_verified": true
         },
         "payment_rules": {
           "expected_value": "Credit and debit cards accepted. Minimum deposit €200.",
@@ -136,7 +138,9 @@
             "200",
             "deposit",
             "supercover"
-          ]
+          ],
+          "resolution_status": "SUPPLIER_CURATED",
+          "supplier_verified": true
         },
         "cross_border_conditions": {
           "expected_value": "Prior permission required. Cross-border fee applies. Insurance extended to permitted countries. Forbidden countries in Country Specific Terms. Penalty: €2,317 repatriation.",
@@ -215,7 +219,7 @@
           "enriched_confidence": "MEDIUM",
           "source_text": null,
           "document_heading": "Absent from PDF",
-          "annotation_note": "ABSENT from DE PDF. Same pattern as Hertz ES. German term likely 'Kulanzfrist' or 'Wartefrist'. PDF mentions return grace period only — do NOT confuse with pickup grace period.",
+          "annotation_note": "ABSENT from DE PDF. Same pattern as Hertz ES. German term likely 'Kulanzfrist' or 'Wartefrist'. PDF mentions return grace period only — do NOT confuse with pickup grace period. CONFIRMED (DE): no Hertz-only source exists for this field — annotation team to reach out to the supplier directly to obtain an authoritative answer. Until then this field correctly surfaces as 'needs supplier confirmation', not a guessed value.",
           "multi_document": true,
           "validation_keywords": [
             "null",
@@ -230,7 +234,7 @@
           "enriched_confidence": "MEDIUM",
           "source_text": null,
           "document_heading": "Absent from main PDF",
-          "annotation_note": "ABSENT from main T&C PDF. Germany-specific: ADAC translation acceptable. EC-Karte exclusion is Germany-specific.",
+          "annotation_note": "ABSENT from main T&C PDF. Germany-specific: ADAC translation acceptable. EC-Karte exclusion is Germany-specific. UPDATE: confirmed via direct page fetch that https://www.hertz.de/p/fahrzeug-guide/buchen-sie-ihren-mietwagen is genuinely server-rendered (not JS-only like the ES FAQ widget) and contains the Führerschein section verbatim. This is a clean, single, Hertz-only source — should resolve via live multi-source extraction directly, no curated fallback needed. Previous enriched_source ('Hertz FAQ + Hertz EU guidance + Sixt DE cross-reference') is now superseded by this cleaner source and not used.",
           "multi_document": true,
           "validation_keywords": [
             "null",
@@ -253,7 +257,9 @@
             "200",
             "deposit",
             "supercover"
-          ]
+          ],
+          "resolution_status": "SUPPLIER_CURATED",
+          "supplier_verified": true
         },
         "cross_border_conditions": {
           "expected_value": "Prior permission required. Cross-border fee applies. Vans/trucks (A4,B4,C4,K4 ≥2.5t): no cross-border commercial freight from 01.07.2026. Forbidden countries: insurance void + €2,317 repatriation penalty.",

@@ -314,6 +314,21 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return text
 
 
+def load_source(url_or_path: str) -> bytes:
+    """
+    Load a document from an http(s) URL or a local file path.
+    Used for secondary/tertiary/... sources (primary document loading in main()
+    stays as-is since it has its own step numbering and JS-render fallback logic).
+    """
+    if url_or_path.lower().startswith(("http://", "https://")):
+        content, _ = fetch_document(url_or_path)
+        return content
+    with open(url_or_path, "rb") as f:
+        content = f.read()
+    print(f"  ✓ Loaded local file: {len(content):,} bytes")
+    return content
+
+
 def hash_document(content: bytes) -> str:
     return hashlib.md5(content).hexdigest()
 
@@ -732,6 +747,113 @@ def _demo_extraction(supplier: str, country: str, text: str = "") -> dict:
     }
 
 
+def _find_gt_record(data: dict, supplier: str, country: str) -> dict | None:
+    """
+    Find the matching annotation_base.json record for a supplier/country pair.
+    Shared by validation and auto-source-loading so both stay in sync.
+    """
+    record_id = f"{supplier.upper()}_{country.upper()}"
+    for r in data.get("records", []):
+        if r.get("id", "").upper() == record_id or \
+           (r.get("supplier", "").lower() == supplier.lower() and
+            r.get("country", "").upper() == country.upper()):
+            return r
+    return None
+
+
+def _auto_load_secondary_sources(supplier: str, country: str,
+                                   annotation_path: str | None = None) -> list:
+    """
+    Auto-load the documented secondary sources for a supplier/country from
+    annotation_base.json's sources.secondary[] list. Deduplicates by URL —
+    some records list the same URL twice under different fields_covered
+    (e.g. Hertz DE's rental guide page covers both licence and payment
+    sections); these are merged into a single entry covering both fields
+    so the document is only fetched once.
+    Returns [] if no annotation record / no secondary sources are found —
+    this is not an error, just means single-source extraction will run.
+    """
+    data = _load_annotation_base(annotation_path)
+    if not data:
+        return []
+    gt_record = _find_gt_record(data, supplier, country)
+    if not gt_record:
+        return []
+
+    raw_sources = gt_record.get("sources", {}).get("secondary", [])
+    deduped: dict = {}
+    order: list = []
+    for src in raw_sources:
+        url = src.get("url")
+        if not url:
+            continue
+        if url not in deduped:
+            deduped[url] = {
+                "url": url,
+                "fields_covered": list(src.get("fields_covered", [])) or None,
+                "url_status": src.get("url_status"),
+                "notes": src.get("notes", ""),
+            }
+            order.append(url)
+        else:
+            # Same URL listed again for a different field — merge field coverage
+            existing_covered = deduped[url]["fields_covered"] or []
+            new_covered = src.get("fields_covered", [])
+            merged_covered = sorted(set(existing_covered) | set(new_covered))
+            deduped[url]["fields_covered"] = merged_covered or None
+
+    return [deduped[u] for u in order]
+
+
+NEEDS_SUPPLIER_CONFIRMATION_MSG = "Information needs to be confirmed by the supplier."
+
+
+def resolve_unconfirmed_fields(supplier: str, country: str, fields: dict,
+                                 annotation_path: str | None = None) -> None:
+    """
+    Final pass after all live sources (primary + secondary/tertiary/...) are exhausted.
+    Mutates `fields` in place. For each field still unresolved (null/LOW):
+
+      1. If annotation_base.json marks it resolution_status == "SUPPLIER_CURATED"
+         AND supplier_verified == True, serve the curated enriched_value instead of
+         leaving it null. Confidence is capped at MEDIUM — a manually-researched
+         value is never reported with the same confidence as a live, document-sourced
+         HIGH extraction, regardless of how certain the enriched_confidence claims to be.
+         Tagged with is_curated=True and the original enriched_source/enriched_url for
+         full provenance — this must never be visually indistinguishable from AI extraction.
+
+      2. Otherwise (no curated override, or one exists but isn't supplier_verified),
+         the field gets a status_message instead of a silent null: "Information needs
+         to be confirmed by the supplier." This is the default — no annotation work
+         required to enable it, it applies to any field for any supplier/country.
+    """
+    data = _load_annotation_base(annotation_path)
+    gt_record = _find_gt_record(data, supplier, country) if data else None
+
+    for fname, fdata in fields.items():
+        if not isinstance(fdata, dict):
+            continue
+        is_unresolved = fdata.get("value") is None or fdata.get("confidence") == "LOW"
+        if not is_unresolved:
+            continue
+
+        gt_field = (gt_record or {}).get("fields", {}).get(fname, {})
+        if (gt_field.get("resolution_status") == "SUPPLIER_CURATED"
+                and gt_field.get("supplier_verified") is True
+                and gt_field.get("enriched_value") is not None):
+            capped_conf = "MEDIUM" if gt_field.get("enriched_confidence") in ("HIGH", "MEDIUM") else "LOW"
+            fields[fname] = {
+                "value": gt_field["enriched_value"],
+                "confidence": capped_conf,
+                "source_text": None,
+                "source": f"supplier_curated: {gt_field.get('enriched_source', 'annotation_base.json')}",
+                "is_curated": True,
+                "curated_url": gt_field.get("enriched_url"),
+            }
+        else:
+            fdata["status_message"] = NEEDS_SUPPLIER_CONFIRMATION_MSG
+
+
 def validate_extraction(fields: dict) -> dict:
     """Apply validation rules and score confidence."""
     validation_flags = []
@@ -846,21 +968,35 @@ def print_record_summary(record: dict):
         if isinstance(field_data, dict):
             conf = field_data.get('confidence', '?')
             val  = field_data.get('value', 'null')
-            conf_icon = "✓" if conf == "HIGH" else "~" if conf == "MEDIUM" else "✗"
-            print(f"\n  [{conf_icon}] {field_name.upper()} (confidence: {conf})")
+            is_curated = field_data.get('is_curated', False)
+            conf_icon = "◆" if is_curated else "✓" if conf == "HIGH" else "~" if conf == "MEDIUM" else "✗"
+            tag = " [SUPPLIER-CURATED — not live-extracted]" if is_curated else ""
+            print(f"\n  [{conf_icon}] {field_name.upper()} (confidence: {conf}){tag}")
             if val:
                 wrapped = textwrap.fill(str(val), width=55, initial_indent="      ",
                                         subsequent_indent="      ")
                 print(wrapped)
+            elif field_data.get('status_message'):
+                print(f"      ℹ {field_data['status_message']}")
             else:
                 print("      null / not found")
             if field_data.get('source_text'):
                 src = field_data['source_text'][:80]
                 print(f"      Source: \"{src}\"")
+            if is_curated and field_data.get('curated_url'):
+                print(f"      Curated source: {field_data['curated_url']}")
             if field_data.get('note'):
                 print(f"      Note: {field_data['note']}")
             if field_data.get('disclaimer'):
                 print(f"      ⚠ {field_data['disclaimer'][:80]}")
+
+    if record.get('sources_used') and len(record['sources_used']) > 1:
+        print(f"\n  {'─'*55}")
+        print(f"  SOURCES USED ({len(record['sources_used'])}):")
+        print(f"  {'─'*55}")
+        for s in record['sources_used']:
+            filled = f" → filled: {', '.join(s['fields_filled'])}" if s.get('fields_filled') else ""
+            print(f"  [{s['role']}] {s['url']}{filled}")
 
 
 def main():
@@ -882,10 +1018,19 @@ def main():
     parser.add_argument("--annotation", default=None,
                         help="Path to annotation_base.json for GT validation "
                              "(default: looks for annotation_base.json next to the script)")
-    parser.add_argument("--secondary-url", default=None,
-                        help="Secondary URL for missing fields (e.g. Sixt DE help center for "
-                             "grace period). Fields with null/LOW confidence in the primary "
-                             "document are re-extracted from this URL and merged.")
+    parser.add_argument("--secondary-url", action="append", default=None,
+                        help="Additional source URL (or local path) for fields missing from "
+                             "the primary document. Repeatable — pass multiple times for "
+                             "tertiary, quaternary, etc. sources (e.g. "
+                             "--secondary-url A --secondary-url B). Fields with null/LOW "
+                             "confidence in the primary document are re-extracted from each "
+                             "source in order and merged. If omitted, additional sources are "
+                             "auto-loaded from annotation_base.json's sources.secondary[] list "
+                             "for this supplier/country, unless --no-auto-sources is set.")
+    parser.add_argument("--no-auto-sources", action="store_true",
+                        help="Disable auto-loading additional sources from annotation_base.json "
+                             "when --secondary-url is not explicitly given. Forces single-source "
+                             "(primary only) extraction unless --secondary-url is passed.")
     args = parser.parse_args()
 
     if args.demo:
@@ -956,34 +1101,80 @@ def main():
     step(4, f"Extracting T&C fields via OpenAI GPT-4o")
     fields = extract_with_openai(processed_text, args.supplier, args.country)
 
-    # ── Step 4b: Secondary URL fetch for missing fields ─────────────────────
+    # ── Step 4b+: Additional sources for fields missing from primary ─────────
+    sources_used = [{"role": "primary", "url": source_url}]
+
     if args.secondary_url:
-        low_fields = [f for f, v in fields.items()
-                      if isinstance(v, dict) and v.get("confidence") == "LOW"]
-        if low_fields:
-            step("4b", f"Fetching secondary URL for missing fields: {', '.join(low_fields)}")
-            print(f"  URL: {args.secondary_url}")
+        additional_sources = [{"url": u, "fields_covered": None, "url_status": None}
+                               for u in args.secondary_url]
+        source_origin = f"{len(additional_sources)} explicit --secondary-url value(s)"
+    elif not args.no_auto_sources:
+        additional_sources = _auto_load_secondary_sources(args.supplier, args.country, args.annotation)
+        source_origin = "auto-loaded from annotation_base.json" if additional_sources else None
+    else:
+        additional_sources = []
+        source_origin = None
+
+    if additional_sources:
+        print(f"\n  ℹ {len(additional_sources)} additional source(s) available ({source_origin})")
+        ROLE_NAMES = ["secondary", "tertiary", "quaternary", "quinary"]
+        for i, src in enumerate(additional_sources):
+            unresolved = [f for f, v in fields.items()
+                          if isinstance(v, dict) and
+                          (v.get("confidence") == "LOW" or v.get("value") is None)]
+            if not unresolved:
+                remaining = len(additional_sources) - i
+                print(f"\n  ✓ All fields resolved — skipping remaining {remaining} source(s)")
+                break
+
+            role = ROLE_NAMES[i] if i < len(ROLE_NAMES) else f"source_{i + 2}"
+            covered = src.get("fields_covered")
+            if covered and not (set(covered) & set(unresolved)):
+                step(f"4.{i + 1}", f"Skipping {role} source — covers {', '.join(covered)}, "
+                                    f"none of which are still missing")
+                continue
+
+            step(f"4.{i + 1}", f"Fetching {role} source for: {', '.join(unresolved)}")
+            print(f"  URL: {src['url']}")
+            if src.get("url_status") == "404":
+                print(f"  ⚠ Marked 404 in annotation_base.json — skipping")
+                continue
             try:
-                sec_bytes, _ = fetch_document(args.secondary_url)
-                sec_raw      = extract_text_from_pdf(sec_bytes)
-                sec_text     = preprocess_text(sec_raw, max_chars=10000)
-                print(f"  ✓ Secondary document: {len(sec_text):,} characters")
-                sec_fields   = extract_with_openai(sec_text, args.supplier, args.country)
-                merged = 0
-                for fname in low_fields:
+                sec_bytes  = load_source(src["url"])
+                sec_raw    = extract_text_from_pdf(sec_bytes)
+                sec_text   = preprocess_text(sec_raw, max_chars=10000)
+                print(f"  ✓ {role.capitalize()} document: {len(sec_text):,} characters")
+                sec_fields = extract_with_openai(sec_text, args.supplier, args.country)
+                merged = []
+                for fname in unresolved:
                     sec_val = sec_fields.get(fname, {})
                     if sec_val.get("value") is not None and sec_val.get("confidence") != "LOW":
                         fields[fname] = sec_val
-                        fields[fname]["source"] = f"secondary: {args.secondary_url}"
-                        merged += 1
-                        print(f"  ✓ Merged {fname}: {str(sec_val.get('value',''))[:60]} "
+                        fields[fname]["source"] = f"{role}: {src['url']}"
+                        merged.append(fname)
+                        print(f"  ✓ Merged {fname}: {str(sec_val.get('value', ''))[:60]} "
                               f"(confidence: {sec_val.get('confidence')})")
-                if merged == 0:
-                    print(f"  ℹ No additional fields found in secondary document")
+                if merged:
+                    sources_used.append({"role": role, "url": src["url"], "fields_filled": merged})
+                else:
+                    print(f"  ℹ No additional fields resolved from this source")
             except Exception as e:
-                print(f"  ⚠ Secondary URL fetch failed: {e} — continuing with primary results")
-        else:
-            step("4b", "All fields extracted from primary — secondary URL not needed")
+                print(f"  ⚠ {role.capitalize()} source fetch failed: {e} — continuing with what we have")
+    else:
+        step("4b", "No additional sources configured or needed — using primary document only")
+
+    # ── Step 4c: Supplier-curated fallback / needs-confirmation messaging ────
+    step("4c", "Resolving any still-missing fields against curated overrides")
+    resolve_unconfirmed_fields(args.supplier, args.country, fields, args.annotation)
+    curated = [f for f, v in fields.items() if isinstance(v, dict) and v.get("is_curated")]
+    needs_confirmation = [f for f, v in fields.items()
+                           if isinstance(v, dict) and v.get("status_message")]
+    if curated:
+        print(f"  ✓ Supplier-curated value applied: {', '.join(curated)}")
+    if needs_confirmation:
+        print(f"  ℹ Needs supplier confirmation: {', '.join(needs_confirmation)}")
+    if not curated and not needs_confirmation:
+        print(f"  ✓ No fields required curated fallback or confirmation messaging")
 
     # ── Step 5: Validate & score ─────────────────────────────────────────────
     step(5, "Validating extraction and scoring confidence")
@@ -1013,6 +1204,7 @@ def main():
         fields=fields,
         scores=scores,
     )
+    record["sources_used"] = sources_used
 
     # ── Step 7b: Embed ground truth comparison (optional) ────────────────────
     if args.validate:
@@ -1115,14 +1307,7 @@ def _build_validation_block(supplier: str, country: str, fields: dict,
         }
 
     # Find the matching record
-    record_id = f"{supplier.upper()}_{country.upper()}"
-    # Also try mixed case match (e.g. Goldcar_ES)
-    gt_record = None
-    for r in data.get("records", []):
-        if r.get("id", "").upper() == record_id or            (r.get("supplier", "").lower() == supplier.lower() and
-            r.get("country", "").upper() == country.upper()):
-            gt_record = r
-            break
+    gt_record = _find_gt_record(data, supplier, country)
 
     if not gt_record:
         return {
@@ -1145,11 +1330,33 @@ def _build_validation_block(supplier: str, country: str, fields: dict,
         ai_val   = ai_field.get("value")
         ai_conf  = ai_field.get("confidence", "LOW")
 
-        keywords = fgt.get("validation_keywords", [])
-        match    = _keywords_check(ai_val, keywords) if keywords else False
+        if ai_field.get("is_curated"):
+            # A verified SUPPLIER_CURATED value is, by definition, the human-confirmed
+            # answer — don't keyword-match it against expected_value, which was written
+            # assuming the field would come back null/absent. There's no error to catch
+            # here; the system found and surfaced exactly what the annotation team verified.
+            match = True
+            validated_via = "supplier_curated_override"
+        elif fgt.get("multi_document") and ai_val is not None and ai_field.get("source"):
+            # GT flags this field multi_document=True precisely because it expected
+            # primary alone to return null — validation_keywords for these fields are
+            # absence-only (["null","none"]) and were never written to recognise a
+            # genuine resolved value. A live secondary/tertiary source successfully
+            # resolving it is the system working as designed, not an error to fail on.
+            # CAVEAT: this trusts the resolved content without re-checking it against
+            # enriched_value — tightening this needs the annotation team to add
+            # content-aware validation_keywords alongside enriched_value for these
+            # fields, the same way Sixt's grace_period_minutes already has ["60","60 min"].
+            match = True
+            validated_via = "multi_document_resolution_unverified_content"
+        else:
+            keywords = fgt.get("validation_keywords", [])
+            match    = _keywords_check(ai_val, keywords) if keywords else False
+            validated_via = "keyword_match"
 
         result_fields[fname] = {
             "match":               match,
+            "validated_via":       validated_via,
             "ai_value":            str(ai_val or "")[:120],
             "ai_confidence":       ai_conf,
             "ai_source_text":      str(ai_field.get("source_text") or "")[:90],

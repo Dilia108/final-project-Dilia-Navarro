@@ -1,11 +1,11 @@
 {
-  "record_id": "Sixt-DE-1781639647",
+  "record_id": "Sixt-DE-1781686335",
   "supplier": "Sixt",
   "pickup_country": "DE",
   "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
-  "document_hash": "5225744da5231e765e76780a293bcbde",
-  "ingested_at": "2026-06-16T19:53:54.260691+00:00",
-  "extracted_at": "2026-06-16T19:54:07.103972+00:00",
+  "document_hash": "595af6391ecc439e0520a8a99b7f68f6",
+  "ingested_at": "2026-06-17T08:51:59.834264+00:00",
+  "extracted_at": "2026-06-17T08:52:15.753354+00:00",
   "extraction_model": "gpt-4o-mini",
   "overall_confidence": "HIGH",
   "requires_human_review": false,
@@ -27,7 +27,7 @@
     "licence_rules": {
       "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
       "confidence": "HIGH",
-      "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
+      "source_text": "Fotokopien und digitale Dokumente werden nicht akzeptiert."
     },
     "payment_rules": {
       "value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not accepted.",
@@ -35,7 +35,7 @@
       "source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB."
     },
     "cross_border_conditions": {
-      "value": "4-zone system. Zone I: Western Europe; Zone IV: prohibited for all vehicles.",
+      "value": "4-zone system. Zone I (Western Europe): all vehicles permitted. Zone IV (outside Zones I-III): prohibited for all vehicles.",
       "confidence": "HIGH",
       "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken."
     }
@@ -44,8 +44,21 @@
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-16T19:54:07.103989+00:00"
+    "last_updated": "2026-06-17T08:52:15.753368+00:00"
   },
+  "sources_used": [
+    {
+      "role": "primary",
+      "url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3"
+    },
+    {
+      "role": "secondary",
+      "url": "https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/",
+      "fields_filled": [
+        "grace_period_minutes"
+      ]
+    }
+  ],
   "validation": {
     "ground_truth_source": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
     "production_target_pct": 95,
@@ -53,6 +66,7 @@
     "fields": {
       "tpl_amount": {
         "match": true,
+        "validated_via": "keyword_match",
         "ai_value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
         "ai_confidence": "HIGH",
         "ai_source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in ",
@@ -62,6 +76,7 @@
       },
       "grace_period_minutes": {
         "match": true,
+        "validated_via": "multi_document_resolution_unverified_content",
         "ai_value": "60",
         "ai_confidence": "HIGH",
         "ai_source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
@@ -71,15 +86,17 @@
       },
       "licence_rules": {
         "match": true,
+        "validated_via": "keyword_match",
         "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
+        "ai_source_text": "Fotokopien und digitale Dokumente werden nicht akzeptiert.",
         "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
         "expected_confidence": "HIGH",
         "annotation_note": "Well documented in main T&C. Ukrainian licence exception is time-limited (03/2027). Premium vehicles (GELY/WFLY/JELY/JELP): min. 5 prior Sixt rentals required."
       },
       "payment_rules": {
         "match": true,
+        "validated_via": "keyword_match",
         "ai_value": "Credit and debit cards accepted: Visa, MasterCard, Amex, Diners Club, Discover, JCB, China Union Pay. Prepaid cards not ",
         "ai_confidence": "HIGH",
         "ai_source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, Ameri",
@@ -89,7 +106,8 @@
       },
       "cross_border_conditions": {
         "match": true,
-        "ai_value": "4-zone system. Zone I: Western Europe; Zone IV: prohibited for all vehicles.",
+        "validated_via": "keyword_match",
+        "ai_value": "4-zone system. Zone I (Western Europe): all vehicles permitted. Zone IV (outside Zones I-III): prohibited for all vehicl",
         "ai_confidence": "HIGH",
         "ai_source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken.",
         "expected_value": "4-zone system. Zone I: 22 countries (all vehicles). Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia (excl. W***,X***,GVAR,UVAR,S&L). Zone III: Estonia, Hungary, Latvia, Lithuania (standard only). Zone IV: prohibited all vehicles. Leaving European continent prohibited (incl. Ceuta & Melilla). Penalty: €150. Abroad fee: €7.49/day.",
