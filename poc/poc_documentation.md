@@ -1,6 +1,8 @@
 # TermsIQ POC Documentation
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
-Version 1.7 — June 2026
+Version 1.8 — June 2026
+
+> **Version 1.8 note:** Excel branch now fully operational end-to-end in n8n (`poc_workflow.json`). The `Extract from File (CSV mode)` node was replaced with n8n's native **`Extract from XLSX`** node (binary property: `data`), which correctly reads the `.xlsx` binary fetched by the HTTP node. Sicily by Car IT ran successfully through the full pipeline in 9.356s — APPROVED_AUTO, TPL and payment rules partially extracted. Known limitation: structured fields present in the Excel file (licence_rules, grace_period_minutes, cross_border_conditions) are not reliably extracted via the Excel branch due to row-flattening in `Join Excel Rows` and a prompt designed for PDF/web prose rather than tabular data. Documented under Known Limitations; not a blocker for the POC. See TC-09 below.
 
 > **Version 1.7 note:** `termsiq_poc.py` now supports all three source types — PDF, Web/HTML, and Excel — confirmed with live runs across four supplier/country combinations (Sicily by Car IT via Excel, Hertz ES via PDF, Sixt DE via Web/HTML, Goldcar ES via local PDF). LangSmith tracing uses `wrap_openai` + `@traceable` together: `wrap_openai` wraps the OpenAI client so LangSmith automatically captures token counts, latency, and **per-run cost** in the trace list (no manual cost calculation needed); `@traceable` adds the run name, supplier/country tags, and metadata. The EU endpoint (`https://eu.api.smith.langchain.com`) is set as the default. LangSmith is optional but expected — set `LANGCHAIN_API_KEY` before running.
 > **Version 1.5 note:** added the "Ground Truth: annotation_base.json" and "URL Validity Agent" sections, neither of which were previously documented despite being used throughout the pipeline — `annotation_base.json` is now explained as the Content team's single source of truth, and the URL Validity Agent (`url_agent.py` + its n8n equivalent) is documented for the first time. Also expanded the one-line LangSmith mention into an actual explanation, and updated Files in This POC Package to include everything that was missing.
@@ -23,7 +25,7 @@ For each source the pipeline:
 7. Compares extraction against manually verified ground truth (with `--validate`)
 8. Outputs a single structured JSON record ready for API serving
 
-**Demo recording:** [Watch end-to-end POC demo (Loom)](https://www.loom.com/share/5a7d0c270fb84a4cab1ce09b81e146ab)
+**Demo recording:** [Watch end-to-end POC demo (Loom)](hhttps://www.loom.com/share/706fb8d5adec4d9daddf31bf0d13ddae)
 
 ---
 
@@ -48,7 +50,8 @@ For each source the pipeline:
 [Schedule Trigger]      [On form submission]    ← two entry points; only one fires per run
    (Daily 08:00)         (manual, dropdown:
        │                  hertz_es/hertz_de/
-       │                  sixt_es/sixt_de)
+       │                  sixt_es/sixt_de/
+       │                  sicily_by_car_it)
        │                       │
        └───────────┬───────────┘
                     ▼
@@ -65,8 +68,10 @@ For each source the pipeline:
 [Route by Source Type]         ← Switch node — 3 output branches
    PDF │        Web │     Excel │
        ▼             ▼            ▼
-[Extract Text  [Extract Text  [Extract Text
-  — PDF]        — Web/HTML]    — Excel]
+[Extract Text  [Extract Text  [Extract from
+  — PDF]        — Web/HTML]    File (XLSX)]
+       │             │            │
+       │             │       [Join Excel Rows]
        │             │            │
        └─────────────┴────────────┘
                      │              ← all three feed the same node directly (no Merge
@@ -179,7 +184,9 @@ The Python script and the n8n workflow were built from the same design, but only
 
 **The human review email was unreachable regardless of confidence.** Both outputs of the `Requires human review?` IF node fed only `Build API-ready Record` — the review-queue email node had no path that could ever reach it. Fixed so the true branch reaches both the email and the record-builder. The email node itself remains intentionally disabled, since SMTP isn't configured for this demo environment — enabling it is a deliberate decision for whenever real review-queue testing is needed, not something to flip on by default.
 
-**Testing no longer requires editing code.** Originally, switching test cases meant manually editing two independent hardcoded values — the URL string in `Fetch Supplier Document` and a separate `SUPPLIER`/`COUNTRY` constant inside `Pre-process & Hash Document` — which could drift out of sync with each other. A new `Set Run Config` node now holds named presets (`hertz_es`, `hertz_de`, `sixt_es`, `sixt_de`) as the single source of truth, switchable with one line. A `Form Trigger` ("On form submission") goes further, presenting a literal dropdown to pick a test case without opening any code at all — `Set Run Config` reads the form's selection when that's what triggered the run, falling back to a default preset for Schedule Trigger runs.
+**Testing no longer requires editing code.** Originally, switching test cases meant manually editing two independent hardcoded values — the URL string in `Fetch Supplier Document` and a separate `SUPPLIER`/`COUNTRY` constant inside `Pre-process & Hash Document` — which could drift out of sync with each other. A new `Set Run Config` node now holds named presets (`hertz_es`, `hertz_de`, `sixt_es`, `sixt_de`, `sicily_by_car_it`) as the single source of truth, switchable with one line. A `Form Trigger` ("On form submission") goes further, presenting a literal dropdown to pick a test case without opening any code at all — `Set Run Config` reads the form's selection when that's what triggered the run, falling back to a default preset for Schedule Trigger runs.
+
+**Excel node replaced with native XLSX extractor.** The original `Extract Text — Excel` node used `extractFromFile` in CSV mode, which rejects `.xlsx` binaries with the error "The file selected in 'Input Binary Field' is not in csv format". Replaced with n8n's **`Extract from XLSX`** node (binary property: `data`), which correctly reads the binary payload fetched by the HTTP GET. Confirmed working on first run with Sicily by Car IT (TC-09, 9.356s, APPROVED_AUTO).
 
 ---
 
@@ -193,16 +200,19 @@ These are runs through `poc_workflow.json` specifically, after the hardening pas
 | Hertz DE | PDF | HIGH (COB) | null (correct — absent) | null (correct — absent) | HIGH | HIGH |
 | Sixt ES | Web/HTML | HIGH (explicit €85M) | null* | HIGH | HIGH | HIGH |
 | Sixt DE | Web/HTML | HIGH (explicit €100M) | null* | HIGH | HIGH | HIGH |
+| Sicily by Car IT | Excel | LOW (COB)† | null† | null† | partial† | null† |
 
-*Grace period nulling for Sixt is expected, not a bug — the Python pipeline only ever resolved this field via a secondary help-center source, and this n8n workflow fetches one document per run with no multi-source resolution loop (see Known Limitations).
+*Grace period nulling for Sixt is expected — the Python pipeline only ever resolved this field via a secondary help-center source, and this n8n workflow fetches one document per run with no multi-source resolution loop (see Known Limitations).
 
-All four combinations above were confirmed across repeat runs, including a final re-test of Sixt DE's `payment_rules` after the anchor-keyword fix — it now correctly returns the full card-brand detail ("Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB...") rather than the generic one-line fallback. Every field that's structurally present in the primary document is now resolving correctly across both suppliers and both source types tested. Goldcar remains genuinely untested through this workflow: Goldcar's primary source is JS-rendered, and this n8n workflow has no headless-browser or PDF-fallback logic for that case (the Python script handles it; this workflow doesn't yet), so it's expected to fail differently than the Sixt issues above. The Excel branch has the same binary-read fix applied and has been tested via the Python script (Sicily by Car IT, TC-05 — 5/5 fields, APPROVED_AUTO). It has not yet been executed through the n8n workflow itself — the Python script is the recommended path for Excel sources.
+†Sicily by Car IT Excel results reflect a known structural limitation of the Excel branch — see TC-09 and Known Limitations below. TPL is extracted via COB lookup; payment rules are partially extracted. Fields present in the Excel file (licence_rules, grace_period_minutes, cross_border_conditions) are not reliably resolved due to row-flattening. The pipeline ran end-to-end successfully and produced a valid APPROVED_AUTO record.
+
+All four PDF/Web combinations above were confirmed across repeat runs, including a final re-test of Sixt DE's `payment_rules` after the anchor-keyword fix — it now correctly returns the full card-brand detail ("Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB...") rather than the generic one-line fallback. Every field that's structurally present in the primary document is now resolving correctly across both PDF and Web/HTML source types. Goldcar remains genuinely untested through this workflow: Goldcar's primary source is JS-rendered, and this n8n workflow has no headless-browser or PDF-fallback logic for that case (the Python script handles it; this workflow doesn't yet).
 
 ---
 
 | Capability | How demonstrated |
 |---|---|
-| **Multi-format ingestion** | Same pipeline handles 672KB PDF (Hertz), 76KB HTML page (Sixt), and 786KB PDF (Goldcar local) |
+| **Multi-format ingestion** | Same pipeline handles 672KB PDF (Hertz), 76KB HTML page (Sixt), 786KB PDF (Goldcar local), and 36.7KB Excel (Sicily by Car) |
 | **JS-rendered page detection** | Goldcar web page yields only 3,466 chars (JS shell) — detected automatically, falls back to PDF |
 | **Multilingual extraction** | Sixt ES document is in Spanish — model extracts correctly, source texts are Spanish phrases |
 | **Structured output from unstructured text** | LLM reads messy PDF text with headers/footers mixed in and returns strict JSON |
@@ -267,7 +277,23 @@ All four tests run against real live supplier documents. Model: GPT-4o-mini. Val
 | Cross-border | 5 countries only (Andorra, France, Italy, Portugal, Gibraltar); GPS enforced | HIGH | ✓ |
 | **Validation** | **5/5 (100%)** | | JS-render detected; PDF fallback used automatically |
 
-### Summary across all four tests
+### TC-09 — Sicily by Car IT (Excel, n8n workflow) *(new in v1.8)*
+**URL:** `https://raw.githubusercontent.com/Dilia108/final-project-Dilia-Navarro/main/poc/T%26C%20samples/Sicily%20by%20car%20T%26C.xlsx` | 36.7KB | Excel (.xlsx)
+**Run time:** 9.356s | **Status:** APPROVED_AUTO | **Track:** n8n workflow only
+
+| Field | Result | Confidence | Note |
+|---|---|---|---|
+| TPL | Personal injury: €6,450,000 / Property damage: €1,300,000 | LOW | COB lookup triggered; value extracted |
+| Grace period | null | LOW | Present in Excel file but not resolved — row-flattening limitation |
+| Licence rules | null | LOW | Present in Excel file but not resolved — row-flattening limitation |
+| Payment | Mastercard/Visa/American Express, Debit cards accepted (partial) | LOW | Partially extracted; full detail not captured |
+| Cross-border | null | LOW | Present in Excel file but not resolved — row-flattening limitation |
+
+**What worked:** Full end-to-end pipeline ran successfully — `Extract from XLSX` node correctly ingested the binary, `Join Excel Rows` concatenated row data into text, and the complete downstream pipeline (GPT-4o-mini, COB lookup, validation, record build, file save) executed without errors. Confirms the Excel branch is structurally sound.
+
+**Known limitation:** Fields added to the Excel file (licence_rules, grace_period_minutes, cross_border_conditions) are not reliably extracted. Root cause: `Join Excel Rows` flattens all rows into a single prose string, losing the key/value structure; the extraction prompt is designed for PDF/web prose, not tabular row data. Not a blocker — documented as a future improvement (see Known Limitations).
+
+### Summary across all Python-track tests (TC-01–TC-04)
 
 | Field | Hertz ES | Sixt ES | Hertz DE | Goldcar ES | Pattern |
 |---|---|---|---|---|---|
@@ -277,7 +303,7 @@ All four tests run against real live supplier documents. Model: GPT-4o-mini. Val
 | Payment | ✓ | ✓ | ✓ | ✓ | 4/4 |
 | Cross-border | ✓ | ✓ | ✓ | ✓ | 4/4 |
 
-**Overall field accuracy: 20/20 (100%)** across 4 suppliers, 3 source types, 2 languages.
+**Overall field accuracy (Python script, PDF/Web): 20/20 (100%)** across 4 suppliers, 3 source types, 2 languages.
 
 The Hertz null results for grace period and licence rules are **correct answers**, not failures — these fields are genuinely absent from the main T&C PDF. The pipeline correctly returns null + LOW and routes to human review, surfacing the data gap rather than fabricating a value. In production, a second pipeline run against the Hertz FAQ and country supplement supplements these fields.
 
@@ -306,6 +332,9 @@ The Sixt ES grace period help center URL (`/help-center/articles/recogida-tardia
 **7. Spanish-language extraction works without any language configuration.**
 The Sixt ES HTML page is in Spanish. The model extracted all fields correctly with Spanish source text quotes. No language-specific configuration was required.
 
+**8. Excel row-flattening loses the key/value structure needed for reliable field extraction.**
+The `Join Excel Rows` node concatenates all Excel rows into a single prose string. This works for simple tabular data but destroys the structural relationship between field names and values when the spreadsheet uses a key/value layout. The extraction prompt — designed for PDF/web prose — cannot reliably identify discrete fields from flattened row text. In production, the fix is to preserve key/value pairs from the spreadsheet rows and pass them as structured JSON to the extraction prompt, rather than concatenating into a string.
+
 ---
 
 ## Known Limitations of the POC vs. a Production System
@@ -325,6 +354,7 @@ The Sixt ES HTML page is in Spanish. The model extracted all fields correctly wi
 | **Prompt refinement** | Per-supplier hints in system prompt | Per-supplier prompt variants tuned on full annotation dataset; fine-tuned model for production scale |
 | **Output language** | Extraction language matches source document | English primary output regardless of source language |
 | **Source text attribution** | Occasional misattribution on licence_rules (cosmetic) | Validated source text linked to exact page and character offset in source document |
+| **Excel field extraction** | Row-flattening in `Join Excel Rows` loses key/value structure; fields present in spreadsheet not reliably extracted by LLM prompt designed for prose | Structured key/value pairs preserved and passed as JSON to extraction prompt; spreadsheet schema mapped to T&C field ontology |
 
 ---
 
@@ -377,8 +407,8 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 ### Import n8n workflow
 1. Open n8n → **+** → **Import from file** → select `poc_workflow.json`
 2. Configure credentials: OpenAI API key, SMTP for review emails (SMTP was deactivated for the demo)
-3. To switch test case: open `Set Run Config` and change `ACTIVE_PRESET` to one of `hertz_es` / `hertz_de` / `sixt_es` / `sixt_de` — no need to touch the Fetch node directly
-4. Optional: add an `On form submission` Form Trigger node with a "Test Case" dropdown (same four options) for switching test cases without opening any code — see `Set Run Config`'s comments for how it reads the form's selection
+3. To switch test case: open `Set Run Config` and change `ACTIVE_PRESET` to one of `hertz_es` / `hertz_de` / `sixt_es` / `sixt_de` / `sicily_by_car_it` — no need to touch the Fetch node directly
+4. Optional: add an `On form submission` Form Trigger node with a "Test Case" dropdown (same five options) for switching test cases without opening any code — see `Set Run Config`'s comments for how it reads the form's selection
 5. Click **Execute Workflow**
 
 ---
@@ -398,10 +428,10 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 | `url_agent_log.json` | Append-only log of every URL Agent run (last 90 kept). Located in the Annotations folder |
 | `DEMO-n8n-URLAgent.mp4` | Recorded demo of the URL Validity Agent's n8n workflow running end-to-end. Located in the Annotations folder |
 | `TC - BCN - 2026-06-15T10_09_55Z.pdf` | Goldcar ES T&C PDF (local — requires session-authenticated download). Located in the T&C samples folder |
-| `Sicily by car T&C.xlsx` | Sicily by Car IT T&C Excel file — single sheet, plain prose rows. Used for TC-05 (first live Excel source-type test). Located in the T&C samples folder |
+| `Sicily by car T&C.xlsx` | Sicily by Car IT T&C Excel file — single sheet, tabular rows. Used for TC-09 (first live Excel n8n test). Located in the T&C samples folder |
 | `poc_documentation.md` | This file |
 | `DEMO_POC_Workflow.mp4` | Demo of the n8n poc_workflow. Located in the Demo POC folder |
 | `poc_terminal_output.md` | Terminal output obtained for the 5 suppliers |
 ---
 
-*TermsIQ POC Documentation — Version 1.7 — June 2026*
+*TermsIQ POC Documentation — Version 1.8 — June 2026*
