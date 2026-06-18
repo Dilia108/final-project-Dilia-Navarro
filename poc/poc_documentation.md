@@ -362,13 +362,14 @@ The `Join Excel Rows` node concatenates all Excel rows into a single prose strin
 
 ### Prerequisites
 ```bash
-pip install pypdf openai
+pip install pypdf openai openpyxl langsmith
 ```
 
 ### Set API key (PowerShell / Windows)
 ```powershell
 $env:OPENAI_API_KEY    = "sk-your-key-here"
-$env:LANGCHAIN_API_KEY = "ls__your_key_here"   # optional — enables LangSmith tracing
+$env:LANGCHAIN_API_KEY = "ls__your_key_here"   
+$env:LANGSMITH_ENDPOINT   = "https://eu.api.smith.langchain.com"
 $env:PYTHONIOENCODING  = "utf-8"
 ```
 

@@ -72,7 +72,7 @@ Five supplier/country combinations are covered: Hertz ES, Hertz DE, Sixt ES, Six
 ## Setup and Installation
 
 ```bash
-pip install pypdf openai
+pip install pypdf openai langsmith
 ```
 
 ```powershell
@@ -82,6 +82,7 @@ $env:PYTHONIOENCODING = "utf-8"
 
 # Enables LangSmith tracing of every extraction call
 $env:LANGSMITH_API_KEY = "your-langsmith-key"
+$env:LANGSMITH_ENDPOINT   = "https://eu.api.smith.langchain.com"
 ```
 
 Expected file layout:
