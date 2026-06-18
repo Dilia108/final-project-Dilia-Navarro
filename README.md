@@ -59,6 +59,10 @@ final-project-Dilia-Navarro/
 │   │   ├── url_agent_log.json          ← Append-only log (last 90 runs)
 │   │   └── DEMO-n8n-URLAgent.mp4       ← Recorded demo of URL agent n8n workflow
 │   │
+│   ├── Demo POC/
+│   │   ├── DEMO_POC_n8n.mp4            ← Recorded demo of POC workflow
+│   │   └── DEMO_POC_presentation.mp4   ← Shorter recorded demo for the presentation
+│   │
 │   └── T&C samples/
 │       ├── Sicily by car T&C.xlsx      ← Sicily by Car IT — Excel source type (TC-09)
 │       └── TC - BCN - 2026-06-15T10_09_55Z.pdf  ← Goldcar ES local PDF (TC-04)
@@ -68,8 +72,16 @@ final-project-Dilia-Navarro/
 │   ├── gradio_app.py                   ← Web UI over the MVP pipeline
 │   ├── mvp_documentation.md            ← MVP documentation (v1.0)
 │   ├── requirements.txt                ← Python dependencies
+│   ├── mvp_terminal_output.md          ← Terminal output including Langsmith screenshots.
 │   └── termsiq_output.json             ← Sample MVP output
 │
+├── compliance/
+│   ├── eu_ai_act_compliance.md         ← EU AI Act documentation
+│   └── gdpr_documentation.md           ← GDPR documentation
+│
+├── use_case_definition.md              ← Use case description
+├── TermsIQ_Project_Document.md         ← Use case analysis for misconceptions and checkpoint
+├── TermsIQ_Final_Presentation.pptx     ← Project Presentation
 ├── roi_risk_assessment.md              ← ROI analysis + risk register (v1.4)
 ├── strategic_plan.md                   ← Deployment and commercialisation plan (v2.0)
 └── README.md                           ← This file
