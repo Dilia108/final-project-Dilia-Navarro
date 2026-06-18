@@ -1,7 +1,8 @@
 # TermsIQ POC Documentation
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
-Version 1.5 — June 2026
+Version 1.7 — June 2026
 
+> **Version 1.7 note:** `termsiq_poc.py` now supports all three source types — PDF, Web/HTML, and Excel — confirmed with live runs across four supplier/country combinations (Sicily by Car IT via Excel, Hertz ES via PDF, Sixt DE via Web/HTML, Goldcar ES via local PDF). LangSmith tracing uses `wrap_openai` + `@traceable` together: `wrap_openai` wraps the OpenAI client so LangSmith automatically captures token counts, latency, and **per-run cost** in the trace list (no manual cost calculation needed); `@traceable` adds the run name, supplier/country tags, and metadata. The EU endpoint (`https://eu.api.smith.langchain.com`) is set as the default. LangSmith is optional but expected — set `LANGCHAIN_API_KEY` before running.
 > **Version 1.5 note:** added the "Ground Truth: annotation_base.json" and "URL Validity Agent" sections, neither of which were previously documented despite being used throughout the pipeline — `annotation_base.json` is now explained as the Content team's single source of truth, and the URL Validity Agent (`url_agent.py` + its n8n equivalent) is documented for the first time. Also expanded the one-line LangSmith mention into an actual explanation, and updated Files in This POC Package to include everything that was missing.
 
 > **Version 1.4 note:** the original live testing below (TC-01 through TC-04) was run via the Python script — that's still accurate and unchanged. A separate hardening pass on `poc_workflow.json` specifically followed, since the n8n track's Web/HTML and Excel branches turned out to have real extraction code that was never actually wired into the rest of the pipeline — meaning the "three source types handled live" claim in the Overview below was true for the Python script but not yet true for n8n until this pass. See **"n8n Workflow Hardening — June 2026"** below for what changed and a separate n8n-specific test results section.
@@ -35,7 +36,7 @@ For each source the pipeline:
 | **OpenAI GPT-4o-mini** | LLM extraction of T&C fields | Sufficient capability for structured extraction; available on standard OpenAI project tier; temperature=0 for deterministic output |
 | **pypdf** | PDF text extraction | Lightweight; handles multi-page PDFs with text layer |
 | **COB 2026 table** | TPL statutory minimum reference | Built-in lookup from Council of Bureaux April 2026 edition |
-| **LangSmith** | Optional LLM call tracing & observability | Traces every OpenAI extraction call with supplier/country metadata and a confidence-based feedback score (HIGH=1.0/MEDIUM=0.5/LOW=0.0); entirely optional — the pipeline runs identically without it if `LANGCHAIN_API_KEY` isn't set |
+| **LangSmith** | LLM call tracing & observability | Traces every OpenAI extraction call. Uses `wrap_openai` (automatic token count, latency, and cost capture in the trace list) combined with `@traceable` (run name `termsiq_extraction`, supplier/country tags, source_chars metadata, confidence feedback score). EU endpoint default. Optional — pipeline runs without it if `LANGCHAIN_API_KEY` is not set. |
 
 ---
 
@@ -195,7 +196,7 @@ These are runs through `poc_workflow.json` specifically, after the hardening pas
 
 *Grace period nulling for Sixt is expected, not a bug — the Python pipeline only ever resolved this field via a secondary help-center source, and this n8n workflow fetches one document per run with no multi-source resolution loop (see Known Limitations).
 
-All four combinations above were confirmed across repeat runs, including a final re-test of Sixt DE's `payment_rules` after the anchor-keyword fix — it now correctly returns the full card-brand detail ("Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB...") rather than the generic one-line fallback. Every field that's structurally present in the primary document is now resolving correctly across both suppliers and both source types tested. Goldcar and the Excel branch remain genuinely untested through this workflow: Goldcar's primary source is JS-rendered, and this n8n workflow has no headless-browser or PDF-fallback logic for that case (the Python script handles it; this workflow doesn't yet), so it's expected to fail differently than the Sixt issues above, not the same way. The Excel branch has the same binary-read fix applied but has never actually been executed against a real file.
+All four combinations above were confirmed across repeat runs, including a final re-test of Sixt DE's `payment_rules` after the anchor-keyword fix — it now correctly returns the full card-brand detail ("Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB...") rather than the generic one-line fallback. Every field that's structurally present in the primary document is now resolving correctly across both suppliers and both source types tested. Goldcar remains genuinely untested through this workflow: Goldcar's primary source is JS-rendered, and this n8n workflow has no headless-browser or PDF-fallback logic for that case (the Python script handles it; this workflow doesn't yet), so it's expected to fail differently than the Sixt issues above. The Excel branch has the same binary-read fix applied and has been tested via the Python script (Sicily by Car IT, TC-05 — 5/5 fields, APPROVED_AUTO). It has not yet been executed through the n8n workflow itself — the Python script is the recommended path for Excel sources.
 
 ---
 
@@ -336,12 +337,12 @@ pip install pypdf openai
 
 ### Set API key (PowerShell / Windows)
 ```powershell
-$env:OPENAI_API_KEY = "sk-your-key-here"
-$env:PYTHONIOENCODING = "utf-8"
-$env:LANGCHAIN_API_KEY = "ls__your_key_here"   # optional — see LangSmith tracing below
+$env:OPENAI_API_KEY    = "sk-your-key-here"
+$env:LANGCHAIN_API_KEY = "ls__your_key_here"   # optional — enables LangSmith tracing
+$env:PYTHONIOENCODING  = "utf-8"
 ```
 
-**LangSmith tracing (optional).** If `LANGCHAIN_API_KEY` is set, `_setup_langsmith()` auto-creates a `TermsIQ-POC` project on LangSmith's EU endpoint and traces every OpenAI extraction call, attaching a feedback score derived from confidence (HIGH=1.0, MEDIUM=0.5, LOW=0.0) along with supplier/country/token-count metadata — useful for spotting confidence drift across runs without re-reading terminal output each time. This is entirely optional and additive: without the key, `_setup_langsmith()` returns `False` and every other step in the pipeline runs identically, with zero behavior change.
+**LangSmith tracing (optional).** If `LANGCHAIN_API_KEY` is set, `_setup_langsmith()` initialises tracing against the EU endpoint (`https://eu.api.smith.langchain.com`) and creates the `TermsIQ-POC` project if it doesn't exist. The OpenAI client is wrapped with `wrap_openai`, which automatically captures token counts, latency, and per-run cost in the LangSmith trace list — no manual cost calculation needed. `@traceable` adds the run name (`termsiq_extraction`), supplier/country/model tags, and a confidence feedback score (HIGH=1.0 / MEDIUM=0.5 / LOW=0.0). Without `LANGCHAIN_API_KEY`, the pipeline runs identically with no tracing. Check your traces at `https://eu.smith.langchain.com`.
 
 ### TC-01 — Hertz ES (PDF)
 ```powershell
@@ -397,9 +398,10 @@ python poc/termsiq_poc.py --demo --local-file poc/sample_tc.txt --supplier Hertz
 | `url_agent_log.json` | Append-only log of every URL Agent run (last 90 kept). Located in the Annotations folder |
 | `DEMO-n8n-URLAgent.mp4` | Recorded demo of the URL Validity Agent's n8n workflow running end-to-end. Located in the Annotations folder |
 | `TC - BCN - 2026-06-15T10_09_55Z.pdf` | Goldcar ES T&C PDF (local — requires session-authenticated download). Located in the T&C samples folder |
+| `Sicily by car T&C.xlsx` | Sicily by Car IT T&C Excel file — single sheet, plain prose rows. Used for TC-05 (first live Excel source-type test). Located in the T&C samples folder |
 | `poc_documentation.md` | This file |
 | `DEMO_POC_Workflow.mp4` | Demo of the n8n poc_workflow. Located in the Demo POC folder |
 | `poc_terminal_output.md` | Terminal output obtained for the 5 suppliers |
 ---
 
-*TermsIQ POC Documentation — Version 1.5 — June 2026*
+*TermsIQ POC Documentation — Version 1.7 — June 2026*

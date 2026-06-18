@@ -314,6 +314,37 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         return text
 
 
+def extract_text_from_excel(excel_bytes: bytes) -> str:
+    """Extract text from Excel bytes using openpyxl.
+    Reads every sheet row by row, preserving readable order.
+    Non-breaking spaces and leading/trailing whitespace are stripped.
+    """
+    import io
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(excel_bytes), data_only=True)
+    sections = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            # Join non-empty cells in the row, strip non-breaking spaces
+            cells = [
+                str(c).replace("\xa0", " ").strip()
+                for c in row
+                if c is not None and str(c).strip().replace("\xa0", "")
+            ]
+            if cells:
+                rows.append("  ".join(cells))
+        if rows:
+            header = f"=== Sheet: {sheet_name} ===" if len(wb.sheetnames) > 1 else ""
+            if header:
+                sections.append(header)
+            sections.extend(rows)
+    full_text = "\n".join(sections)
+    print(f"  ✓ Extracted {len(full_text):,} characters from {len(wb.sheetnames)} sheet(s)")
+    return full_text
+
+
 def hash_document(content: bytes) -> str:
     return hashlib.md5(content).hexdigest()
 
@@ -425,19 +456,26 @@ def _make_openai_call(client, messages: list, supplier: str, country: str) -> ob
     Decorated with @traceable so LangSmith sees it as a named run with
     supplier/country metadata attached — even when wrap_openai is not used.
     The @traceable decorator is applied conditionally at runtime.
-    Returns a tuple of (response, run_id) so the caller can attach feedback.
+    Returns a tuple of (response, run_id) when inside a LangSmith traceable
+    context, or just the response object when tracing is disabled.
     """
-    from langsmith import get_current_run_tree
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0,
         max_tokens=1200,
     )
-    # Capture the run_id while still inside the traceable context
-    run_tree = get_current_run_tree()
-    run_id   = str(run_tree.id) if run_tree else None
-    return response, run_id
+    # Only capture run_id when LangSmith tracing is active
+    try:
+        from langsmith import get_current_run_tree
+        run_tree = get_current_run_tree()
+        run_id   = str(run_tree.id) if run_tree else None
+    except Exception:
+        run_id = None
+    # Return tuple only when there is a run_id to attach feedback to
+    if run_id:
+        return response, run_id
+    return response
 
 
 def extract_with_openai(text: str, supplier: str, country: str) -> dict:
@@ -889,7 +927,11 @@ def main():
 
     # ── Step 2: Extract text ─────────────────────────────────────────────────
     step(2, "Extracting text from document")
-    raw_text = extract_text_from_pdf(doc_bytes)
+    _src = (args.local_file or args.url or "").lower()
+    if _src.endswith((".xlsx", ".xls")):
+        raw_text = extract_text_from_excel(doc_bytes)
+    else:
+        raw_text = extract_text_from_pdf(doc_bytes)  # also handles .txt fallback
     doc_hash = hash_document(doc_bytes)
     print(f"  ✓ Document hash (MD5): {doc_hash}")
 

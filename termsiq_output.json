@@ -1,11 +1,11 @@
 {
-  "record_id": "Goldcar-ES-1781713453",
+  "record_id": "Goldcar-ES-1781772632",
   "supplier": "Goldcar",
   "pickup_country": "ES",
   "source_url": "local://poc/T&C samples/TC - BCN - 2026-06-15T10_09_55Z.pdf",
   "document_hash": "8dd5f766baaad08ab8ba6acadc02fbe2",
-  "ingested_at": "2026-06-17T16:23:57.991831+00:00",
-  "extracted_at": "2026-06-17T16:24:13.538872+00:00",
+  "ingested_at": "2026-06-18T08:50:16.913370+00:00",
+  "extracted_at": "2026-06-18T08:50:32.579025+00:00",
   "extraction_model": "gpt-4o-mini",
   "overall_confidence": "HIGH",
   "requires_human_review": false,
@@ -16,7 +16,7 @@
     "tpl_amount": {
       "value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
       "confidence": "HIGH",
-      "source_text": "cumple con todos los requisitos legales en materia de responsabilidad civil",
+      "source_text": "Goldcar may be obliged to incur as a consequence",
       "source": "COB Minimum Amount of Coverage 2026 (data date: Dec-25)",
       "source_url": "https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf",
       "disclaimer": "Figures provided for information only. COB assumes no responsibility for accuracy or future changes.",
@@ -31,31 +31,25 @@
     "licence_rules": {
       "value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
       "confidence": "HIGH",
-      "source_text": "Goldcar minimum age is 21 for ALL vehicles."
+      "source_text": "The age of the driving licence and the duration of the rental agreement"
     },
     "payment_rules": {
-      "value": "Only Visa and Mastercard accepted. Maestro, Amex, Diners Club, prepaid cards, and cash not accepted.",
+      "value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
       "confidence": "HIGH",
-      "source_text": "Maestro, prepaid cards, Diners Club, American Express or Postepay will not be accepted."
+      "source_text": "The methods of payment accepted for your rental are: Debit card, Credit card VISA or MasterCard"
     },
     "cross_border_conditions": {
       "value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
       "confidence": "HIGH",
-      "source_text": "the island of Formentera and the island of Ibiza is never permitted."
+      "source_text": "the client can access, as long as they have contracted the 'Cross-Border' coverage"
     }
   },
   "api_metadata": {
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-17T16:24:13.538881+00:00"
+    "last_updated": "2026-06-18T08:50:32.579040+00:00"
   },
-  "sources_used": [
-    {
-      "role": "primary",
-      "url": "local://poc/T&C samples/TC - BCN - 2026-06-15T10_09_55Z.pdf"
-    }
-  ],
   "validation": {
     "ground_truth_source": "https://www.goldcar.es/en-gb/terms-and-conditions/",
     "production_target_pct": 95,
@@ -63,17 +57,15 @@
     "fields": {
       "tpl_amount": {
         "match": true,
-        "validated_via": "keyword_match",
         "ai_value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
         "ai_confidence": "HIGH",
-        "ai_source_text": "cumple con todos los requisitos legales en materia de responsabilidad civil",
+        "ai_source_text": "Goldcar may be obliged to incur as a consequence",
         "expected_value": "STATUTORY_MINIMUM",
         "expected_confidence": "LOW",
         "annotation_note": "T&C states compulsory insurance included only — no specific amount. COB 2026 ES lookup required."
       },
       "grace_period_minutes": {
         "match": true,
-        "validated_via": "keyword_match",
         "ai_value": "360",
         "ai_confidence": "HIGH",
         "ai_source_text": "Goldcar will guarantee your booking",
@@ -83,30 +75,27 @@
       },
       "licence_rules": {
         "match": true,
-        "validated_via": "keyword_match",
         "ai_value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Goldcar minimum age is 21 for ALL vehicles.",
+        "ai_source_text": "The age of the driving licence and the duration of the rental agreement",
         "expected_value": "Min. age 21 for ALL vehicles. Licence held min. 1 year. Physical licence always required. Digital licences only accepted if Spanish DGT via miDGT app. US/Canadian: IDP (1949 Geneva Convention Annex 10) + national licence required.",
         "expected_confidence": "HIGH",
         "annotation_note": "Goldcar minimum is 21 for ALL vehicles — stricter than Sixt/Hertz (18). Digital licences: ONLY Spanish DGT via miDGT app. All other digital licences rejected."
       },
       "payment_rules": {
         "match": true,
-        "validated_via": "keyword_match",
-        "ai_value": "Only Visa and Mastercard accepted. Maestro, Amex, Diners Club, prepaid cards, and cash not accepted.",
+        "ai_value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Maestro, prepaid cards, Diners Club, American Express or Postepay will not be accepted.",
+        "ai_source_text": "The methods of payment accepted for your rental are: Debit card, Credit card VISA or Maste",
         "expected_value": "Visa and Mastercard ONLY (credit and debit). Amex, Diners Club, Maestro, Postepay, prepaid cards, virtual cards, cash NOT accepted at counter. Two credit cards required for premium vehicles (F6, G1, G3, G5, G6, H6, J1, J3, K3, T6, U3, U5, Y3).",
         "expected_confidence": "HIGH",
         "annotation_note": "Goldcar ONLY accepts Visa and Mastercard — significantly narrower than Sixt or Hertz. Critical for fine-tuning: do not generalise Sixt/Hertz card lists to Goldcar."
       },
       "cross_border_conditions": {
         "match": true,
-        "validated_via": "keyword_match",
         "ai_value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
         "ai_confidence": "HIGH",
-        "ai_source_text": "the island of Formentera and the island of Ibiza is never permitted.",
+        "ai_source_text": "the client can access, as long as they have contracted the 'Cross-Border' coverage",
         "expected_value": "5 countries only: Andorra, France (continental), Italy (continental), Portugal (continental), Gibraltar. Cross-Border coverage + express branch authorisation required. GPS tracking enforced — contract auto-terminated on violation. Formentera and Ibiza: NEVER permitted. Canary Islands and Balearics (excl. Formentera/Ibiza): permitted with Cross-Border coverage.",
         "expected_confidence": "MEDIUM",
         "annotation_note": "Most restrictive cross-border policy of the 3 suppliers. GPS enforcement explicitly stated — contract auto-terminated on violation. Goldcar may take remote legal action to recover vehicle."
