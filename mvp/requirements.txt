@@ -4,6 +4,9 @@
 openai>=1.0
 pypdf>=4.0
 
+# for the POC - not in use for the MVP
+openpyxl>=3.0 
+
 # Gradio UI (gradio_app.py):
 gradio>=5.0
 
