@@ -162,6 +162,10 @@ Every source in `annotation_base.json` is a live URL, and live URLs change — S
 
 The same logic also exists as an n8n workflow, `url_agent_workflow_v2.json`, for scheduled daily execution without needing a server to keep the Python script running: `Schedule Trigger → Build URL List → Check URL → Classify Result → Aggregate Results → Issues Found? → Send Alert Email / Log — All OK`. A recorded demo of this n8n flow running end-to-end is included (`DEMO-n8n-URLAgent.mp4`).
 
+
+### **Demo recording:** [URL_validity_agent](https://www.loom.com/share/4e93e66e20c6417c85526bb3372da7dd)
+
+
 ---
 
 ## n8n Workflow Hardening — June 2026
