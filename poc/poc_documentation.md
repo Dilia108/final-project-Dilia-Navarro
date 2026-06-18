@@ -25,7 +25,7 @@ For each source the pipeline:
 7. Compares extraction against manually verified ground truth (with `--validate`)
 8. Outputs a single structured JSON record ready for API serving
 
-**Demo recording:** [Watch end-to-end POC demo (Loom)](hhttps://www.loom.com/share/706fb8d5adec4d9daddf31bf0d13ddae)
+### **Demo recording:** [Watch end-to-end POC demo (Loom)](hhttps://www.loom.com/share/706fb8d5adec4d9daddf31bf0d13ddae)
 
 ---
 
