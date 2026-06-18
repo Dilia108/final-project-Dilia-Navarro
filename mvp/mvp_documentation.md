@@ -10,6 +10,11 @@ TermsIQ extracts five fields that cause the most friction at the rental counter 
 
 Five supplier/country combinations are covered: Hertz ES, Hertz DE, Sixt ES, Sixt DE, and Goldcar ES.
 
+
+### **Demo recording:** [Gradio MVP demo](https://www.loom.com/share/c22fadffd5a14401a432ebaf1c0e0ea9)
+
+
+
 ---
 
 ## Architecture Overview
