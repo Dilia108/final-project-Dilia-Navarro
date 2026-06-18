@@ -233,12 +233,12 @@ Correct extraction:
   "payment_rules": {
     "value": "Credit or debit card required at pickup to secure the rental.",
     "confidence": "HIGH",
-    "source_text": "bloquearemos una cantidad en su tarjeta de crédito o débito"
+    "source_text": "tarjeta de crédito o débito"
   },
   "cross_border_conditions": {
     "value": "Travel to prohibited countries invalidates all insurance and waivers. Vehicle repatriation penalty: EUR 2,317.",
     "confidence": "HIGH",
-    "source_text": "todos los seguros y exenciones quedarán invalidados. Indemnización por repatriación: 2.317 EUR."
+    "source_text": "No debe conducir en un país marcado como prohibido."
   }
 }
 
@@ -248,7 +248,12 @@ A null + LOW result is correct when the field is absent. Never guess or fabricat
 Note on payment_rules: the document states a specific deposit figure (EUR 200, plus EUR 500
 without SuperCover) but the correct extraction OMITS that figure entirely — only the payment
 method required for the hold is reported. This applies to every supplier, not just Hertz.
+For source_text: quote the shortest phrase that names the card TYPE accepted (e.g. "tarjeta de crédito o débito"),
+NOT the sentence about blocking/reserving a deposit amount. The deposit sentence is evidence of HOW the
+card is used, not WHICH cards are accepted — quote the type identification, not the transaction description.
 
+Note on cross_border_conditions: quote the sentence stating the MAIN rule or prohibition
+(e.g. "No debe conducir en un país marcado como prohibido"), NOT the consequence/penalty clause.
 """
 
 EXTRACTION_PROMPT_USER = """Extract 5 fields from this car rental T&C document.
@@ -261,7 +266,11 @@ Fields (return all 5, use null only if genuinely absent after reading the full t
 4. payment_rules - accepted/rejected payment methods for deposit and rental. NEVER include a
    specific deposit amount/figure even if stated in the document — just omit it silently,
    don't add a note explaining the omission.
-5. cross_border_conditions - permitted zones/countries, prohibited, penalties
+   For source_text: quote the phrase naming the card TYPE accepted (e.g. "credit or debit card"),
+   NOT the sentence about blocking/reserving/holding a deposit amount on the card.
+5. cross_border_conditions - permitted zones/countries, prohibited, penalties.
+   For source_text: quote the sentence stating the MAIN rule (permitted zones, allowed countries,
+   or the primary prohibition), NOT a penalty/consequence clause.
 
 Each field: value, confidence (HIGH/MEDIUM/LOW), source_text (MUST be copied verbatim from the document text above, max 80 chars, or null if field is absent — never invent or paraphrase source_text)
 
@@ -540,8 +549,12 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
             "3. payment_rules: extract WHICH card types are accepted and rejected (e.g. credit card, "
             "debit card, cash). NEVER include the deposit amount (e.g. €200, €500 SuperCover) in the "
             "value — just omit it silently, don't explain the omission in the value text. "
-            "Focus on: what cards are accepted, what is rejected (cash, prepaid, specific brands).\n"
-            "4. cross_border_conditions: extract normally — present in Hertz PDFs with HIGH confidence."
+            "Focus on: what cards are accepted, what is rejected (cash, prepaid, specific brands). "
+            "For source_text: quote the sentence that lists accepted card TYPES (e.g. 'credit or debit card'), "
+            "NOT the sentence about reserving/blocking a deposit amount.\n"
+            "4. cross_border_conditions: extract normally — present in Hertz PDFs with HIGH confidence. "
+            "For source_text: quote the sentence that states the MAIN rule or permission (e.g. allowed zones, "
+            "permitted countries), NOT the exception clause about forbidden countries."
         ),
         "Sixt": (
             "\n\nSUPPLIER-SPECIFIC NOTE — Sixt:\n"
@@ -554,8 +567,9 @@ def extract_with_openai(text: str, supplier: str, country: str) -> dict:
             "'Führerscheine' section. Key rules: original licence only, no photocopies or digital, "
             "non-EU licences require certified translation or IDP. "
             "If this section is absent from the document, return null + LOW.\n"
-            "3. grace_period_minutes: Look for 'Karenzzeit' / '60-Minuten-Karenz'. "
-            "Value is 60 minutes. If absent from primary document, it will be in the help center."
+            "3. grace_period_minutes: Look for 'Karenzzeit' or '60-Minuten-Karenz' explicitly in the text. "
+            "If those exact terms or a clear pickup grace period statement are NOT present in this document, "
+            "return null + LOW — do NOT infer or assume a value. The help center will be checked separately."
         ),
         "Goldcar": (
             "\n\nSUPPLIER-SPECIFIC NOTE — Goldcar:\n"
@@ -1018,12 +1032,17 @@ def print_record_summary(record: dict):
                                              initial_indent="      ", subsequent_indent="        ")
                 print(disc_wrapped)
 
-    if record.get('sources_used') and len(record['sources_used']) > 1:
+    if record.get('sources_used'):
         print(f"\n  {'─'*55}")
         print(f"  SOURCES USED ({len(record['sources_used'])}):")
         print(f"  {'─'*55}")
         for s in record['sources_used']:
-            filled = f" → filled: {', '.join(s['fields_filled'])}" if s.get('fields_filled') else ""
+            if s.get('fields_filled'):
+                filled = f" → filled: {', '.join(s['fields_filled'])}"
+            elif s['role'] == 'primary':
+                filled = ""
+            else:
+                filled = " → no fields resolved"
             print(f"  [{s['role']}] {s['url']}{filled}")
 
 
@@ -1180,6 +1199,7 @@ def run_extraction(
                 if merged:
                     sources_used.append({"role": role, "url": src["url"], "fields_filled": merged})
                 else:
+                    sources_used.append({"role": role, "url": src["url"], "fields_filled": []})
                     _notify(f"4.{i + 1}", "No additional fields resolved from this source")
             except Exception as e:
                 _notify(f"4.{i + 1}", f"{role.capitalize()} source fetch failed: {e} — continuing with what we have")

@@ -1,11 +1,11 @@
 {
-  "record_id": "Goldcar-ES-1781772632",
-  "supplier": "Goldcar",
-  "pickup_country": "ES",
-  "source_url": "local://poc/T&C samples/TC - BCN - 2026-06-15T10_09_55Z.pdf",
-  "document_hash": "8dd5f766baaad08ab8ba6acadc02fbe2",
-  "ingested_at": "2026-06-18T08:50:16.913370+00:00",
-  "extracted_at": "2026-06-18T08:50:32.579025+00:00",
+  "record_id": "Sixt-DE-1781790841",
+  "supplier": "Sixt",
+  "pickup_country": "DE",
+  "source_url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
+  "document_hash": "5891efec70b65812e060df4e70cc6327",
+  "ingested_at": "2026-06-18T13:53:45.045728+00:00",
+  "extracted_at": "2026-06-18T13:54:01.503473+00:00",
   "extraction_model": "gpt-4o-mini",
   "overall_confidence": "HIGH",
   "requires_human_review": false,
@@ -14,91 +14,105 @@
   "status": "APPROVED_AUTO",
   "fields": {
     "tpl_amount": {
-      "value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+      "value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
       "confidence": "HIGH",
-      "source_text": "Goldcar may be obliged to incur as a consequence",
-      "source": "COB Minimum Amount of Coverage 2026 (data date: Dec-25)",
-      "source_url": "https://www.cobx.org/sites/default/files/2026-04/MinimumAmountOfCoverage%202026.pdf",
-      "disclaimer": "Figures provided for information only. COB assumes no responsibility for accuracy or future changes.",
-      "note": null,
-      "resolution_method": "COB_LOOKUP"
+      "source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in Hhe von EUR 100 Mio."
     },
     "grace_period_minutes": {
-      "value": 360,
+      "value": 60,
       "confidence": "HIGH",
-      "source_text": "Goldcar will guarantee your booking"
+      "source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
+      "source": "secondary: https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/"
     },
     "licence_rules": {
-      "value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
+      "value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences require certified translation.",
       "confidence": "HIGH",
-      "source_text": "The age of the driving licence and the duration of the rental agreement"
+      "source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen."
     },
     "payment_rules": {
-      "value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
+      "value": "Credit and debit cards accepted: Visa, MasterCard, American Express, Diners Club, Discover, JCB, China UnionPay. Prepaid cards not accepted.",
       "confidence": "HIGH",
-      "source_text": "The methods of payment accepted for your rental are: Debit card, Credit card VISA or MasterCard"
+      "source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, American Express, Diners Club, Discover, JCB."
     },
     "cross_border_conditions": {
-      "value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
+      "value": "4-zone system. Zone I: all vehicles permitted. Zone IV: prohibited for all vehicles.",
       "confidence": "HIGH",
-      "source_text": "the client can access, as long as they have contracted the 'Cross-Border' coverage"
+      "source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken."
     }
   },
   "api_metadata": {
     "extraction_method": "AI",
     "model_provider": "OpenAI GPT-4o-mini",
     "data_disclaimer": "T&C data is AI-extracted from supplier documents. Verify critical information with the supplier directly.",
-    "last_updated": "2026-06-18T08:50:32.579040+00:00"
+    "last_updated": "2026-06-18T13:54:01.503483+00:00"
   },
+  "sources_used": [
+    {
+      "role": "primary",
+      "url": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3"
+    },
+    {
+      "role": "secondary",
+      "url": "https://www.sixt.de/help-center/sections/anfahrt-und-ankunft/",
+      "fields_filled": [
+        "grace_period_minutes"
+      ]
+    }
+  ],
   "validation": {
-    "ground_truth_source": "https://www.goldcar.es/en-gb/terms-and-conditions/",
+    "ground_truth_source": "https://www.sixt.de/php/terms/view?language=en_US&liso=DE&rtar=000&view=EPP&tlang=de_DE&style=typo3",
     "production_target_pct": 95,
     "note": "Validation against annotation_base.json — keyword matching on extracted values.",
     "fields": {
       "tpl_amount": {
         "match": true,
-        "ai_value": "Personal injury: €70,000,000 | Property damage: €15,000,000",
+        "validated_via": "keyword_match",
+        "ai_value": "EUR 100,000,000 personal injury (max EUR 12,000,000 per person); property damage included",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Goldcar may be obliged to incur as a consequence",
-        "expected_value": "STATUTORY_MINIMUM",
-        "expected_confidence": "LOW",
-        "annotation_note": "T&C states compulsory insurance included only — no specific amount. COB 2026 ES lookup required."
+        "ai_source_text": "Haftpflichtversicherung mit einer maximalen Deckungssumme bei Personen- und Sachschden in ",
+        "expected_value": "EUR 100,000,000",
+        "expected_confidence": "HIGH",
+        "annotation_note": "Explicit supplier figure — COB lookup not required. Max €12M per person."
       },
       "grace_period_minutes": {
         "match": true,
-        "ai_value": "360",
+        "validated_via": "multi_document_resolution_unverified_content",
+        "ai_value": "60",
         "ai_confidence": "HIGH",
-        "ai_source_text": "Goldcar will guarantee your booking",
-        "expected_value": 360,
-        "expected_confidence": "MEDIUM",
-        "annotation_note": "6 hours = 360 minutes. Unusually long vs Sixt (60 min) and Hertz (59 min). This is a BOOKING GUARANTEE, not a classic grace period. Out-of-hours pickup incurs additional fees. Term used: 'garantizará tu reserva' — not 'grace period'."
+        "ai_source_text": "Eine Kulanzzeit von 60 Minuten ab gebuchter Abholzeit",
+        "expected_value": 60,
+        "expected_confidence": "HIGH",
+        "annotation_note": "Sourced from Sixt DE help center /anfahrt-und-ankunft/. With flight number: up to 24 hours guaranteed. Airport stations stay open 1 hour after closing for delayed flights."
       },
       "licence_rules": {
         "match": true,
-        "ai_value": "Minimum age 21. US/Canadian drivers need IDP. Digital licences accepted if via miDGT app.",
+        "validated_via": "keyword_match",
+        "ai_value": "EU/EEA licence required. Original licence only — photocopies and digital licences not accepted. Non-German licences requ",
         "ai_confidence": "HIGH",
-        "ai_source_text": "The age of the driving licence and the duration of the rental agreement",
-        "expected_value": "Min. age 21 for ALL vehicles. Licence held min. 1 year. Physical licence always required. Digital licences only accepted if Spanish DGT via miDGT app. US/Canadian: IDP (1949 Geneva Convention Annex 10) + national licence required.",
+        "ai_source_text": "Die gltige Fahrerlaubnis ist durch die Vorlage des originalen Fhrerscheins nachzuweisen.",
+        "expected_value": "EU/EEA (incl. Switzerland) licence required. Original only — no photocopies or digital. Non-German/non-EU licences require certified translation or IDP. Non-EU licences accepted if no visa or <6 months EU residency. Ukrainian licences accepted (protection status until 03/2027). Min. age 18.",
         "expected_confidence": "HIGH",
-        "annotation_note": "Goldcar minimum is 21 for ALL vehicles — stricter than Sixt/Hertz (18). Digital licences: ONLY Spanish DGT via miDGT app. All other digital licences rejected."
+        "annotation_note": "Well documented in main T&C. Ukrainian licence exception is time-limited (03/2027). Premium vehicles (GELY/WFLY/JELY/JELP): min. 5 prior Sixt rentals required."
       },
       "payment_rules": {
         "match": true,
-        "ai_value": "Accepted: Debit and Credit cards (VISA, MasterCard). Rejected: Maestro, prepaid cards, Amex.",
+        "validated_via": "keyword_match",
+        "ai_value": "Credit and debit cards accepted: Visa, MasterCard, American Express, Diners Club, Discover, JCB, China UnionPay. Prepaid",
         "ai_confidence": "HIGH",
-        "ai_source_text": "The methods of payment accepted for your rental are: Debit card, Credit card VISA or Maste",
-        "expected_value": "Visa and Mastercard ONLY (credit and debit). Amex, Diners Club, Maestro, Postepay, prepaid cards, virtual cards, cash NOT accepted at counter. Two credit cards required for premium vehicles (F6, G1, G3, G5, G6, H6, J1, J3, K3, T6, U3, U5, Y3).",
+        "ai_source_text": "Sixt akzeptiert Kredit- und Debit-Karten sowie Digital Wallets von Visa, MasterCard, Ameri",
+        "expected_value": "Visa, Mastercard, Amex, Diners Club, Discover, JCB, China UnionPay, Airplus, Amex BTA/iBTA accepted. Maestro/VPAY: vans and trucks + vehicles up to F*** only. Prepaid NOT accepted. Cash NOT accepted. Deposit: rental + €300 to €2,000 by vehicle group.",
         "expected_confidence": "HIGH",
-        "annotation_note": "Goldcar ONLY accepts Visa and Mastercard — significantly narrower than Sixt or Hertz. Critical for fine-tuning: do not generalise Sixt/Hertz card lists to Goldcar."
+        "annotation_note": "Cash NOT accepted in Germany (unlike Spain). EC-Karte not accepted for deposit (Germany-specific). Maestro/VPAY limited to vans/trucks and F*** or below."
       },
       "cross_border_conditions": {
         "match": true,
-        "ai_value": "Authorized countries: Andorra, France, Italy, Portugal, Gibraltar. Formentera and Ibiza prohibited.",
+        "validated_via": "keyword_match",
+        "ai_value": "4-zone system. Zone I: all vehicles permitted. Zone IV: prohibited for all vehicles.",
         "ai_confidence": "HIGH",
-        "ai_source_text": "the client can access, as long as they have contracted the 'Cross-Border' coverage",
-        "expected_value": "5 countries only: Andorra, France (continental), Italy (continental), Portugal (continental), Gibraltar. Cross-Border coverage + express branch authorisation required. GPS tracking enforced — contract auto-terminated on violation. Formentera and Ibiza: NEVER permitted. Canary Islands and Balearics (excl. Formentera/Ibiza): permitted with Cross-Border coverage.",
-        "expected_confidence": "MEDIUM",
-        "annotation_note": "Most restrictive cross-border policy of the 3 suppliers. GPS enforcement explicitly stated — contract auto-terminated on violation. Goldcar may take remote legal action to recover vehicle."
+        "ai_source_text": "Die Fahrzeugwahl kann die Einreise in bestimmte Lnder beschrnken.",
+        "expected_value": "4-zone system. Zone I: 22 countries (all vehicles). Zone II: Croatia, Czech Republic, Poland, Slovakia, Slovenia (excl. W***,X***,GVAR,UVAR,S&L). Zone III: Estonia, Hungary, Latvia, Lithuania (standard only). Zone IV: prohibited all vehicles. Leaving European continent prohibited (incl. Ceuta & Melilla). Penalty: €150. Abroad fee: €7.49/day.",
+        "expected_confidence": "HIGH",
+        "annotation_note": "Fully documented in main T&C. Ferry transport within permitted zones is allowed. Abroad fee: €7.49/day or €29.75/week. XFLP/XFLY: €30/day."
       }
     },
     "fields_correct": 5,

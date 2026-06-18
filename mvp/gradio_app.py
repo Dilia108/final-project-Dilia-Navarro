@@ -214,7 +214,7 @@ def format_record_as_markdown(record: dict) -> str:
         else:
             lines.append(v.get("note", "No ground truth available for this combination."))
 
-    if record.get("sources_used") and len(record["sources_used"]) > 1:
+    if record.get("sources_used"):
         lines.append("\n---\n## Sources Used")
         for s in record["sources_used"]:
             filled = f" → filled: {', '.join(s['fields_filled'])}" if s.get("fields_filled") else ""
@@ -253,6 +253,20 @@ def _run_pipeline(supplier, country, url, local_file, pdf_url, secondary_url,
                 "**Demo Mode** to try the UI with the lower-quality regex fallback "
                 "extractor (no real LLM call, no API key needed)."), {}, ""
 
+    # Resolve annotation_base.json path relative to this file so the UI
+    # finds it regardless of the working directory the user launched from.
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _annotation_path = None
+    for candidate in [
+        os.path.join(_here, "Annotations", "annotation_base.json"),
+        os.path.join(_here, "annotation_base.json"),
+        os.path.join(_here, "..", "poc", "Annotations", "annotation_base.json"),
+        os.path.join(_here, "..", "Annotations", "annotation_base.json"),
+    ]:
+        if os.path.exists(candidate):
+            _annotation_path = candidate
+            break
+
     seen = {}
 
     def cb(step_label, message):
@@ -271,6 +285,7 @@ def _run_pipeline(supplier, country, url, local_file, pdf_url, secondary_url,
             secondary_urls=[secondary_url] if secondary_url else None,
             validate=validate,
             demo=demo_mode,
+            annotation_path=_annotation_path,
             progress_callback=cb,
         )
     except Exception as e:
