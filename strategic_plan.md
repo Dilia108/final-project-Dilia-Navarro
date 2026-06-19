@@ -2,7 +2,7 @@
 **Intelligent Terms & Conditions Extraction for Car Rental Distribution**
 Version 3.0 — June 2026
 
-> **How to read this document.** Each section below has two parts: a **🟢 Client-Facing** block — the language and figures appropriate to share with a prospective client — followed by a **🔒 Internal Only** block with the vendor's underlying business case (build costs, founder pay, vendor ROI, margin thresholds). The internal blocks are not for client distribution; they exist so the same document serves both as the client deliverable and as the underlying business plan, without two files drifting out of sync. When presenting to a client, share only the 🟢 sections.
+> **How to read this document.** Each section below has two parts: a **🟢 Client-Facing** block — the language and figures appropriate to share with a prospective client — followed by a **🔒 Internal Only** block with the vendor's underlying business case (build costs, founder pay, vendor ROI, margin thresholds). The internal blocks are not for client distribution; they exist so the same document serves both as the client deliverable and as the underlying business plan, without two files drifting out of sync. 
 
 ---
 
