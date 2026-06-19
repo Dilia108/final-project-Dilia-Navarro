@@ -195,6 +195,7 @@ All data processing and storage occurs within Germany. The system serves output 
 | **Applicable provision** | Article 50, EU AI Act (Regulation (EU) 2024/1689) |
 | **Basis** | TermsIQ uses generative AI models to produce structured content that ultimately informs consumer-facing information displayed at booking. Transparency obligations apply. The system does not fall within Annex III high-risk categories — it makes no decisions about individuals, performs no biometric identification, and operates exclusively at the B2B aggregator layer. |
 | **High-risk exclusion basis** | No Annex III category applies: the system does not assess individuals, affect access to essential services for natural persons, or operate in any of the enumerated high-risk domains (biometrics, critical infrastructure, education, employment, law enforcement, migration, justice). |
+| **Role under EU AI Act** | The aggregator operating TermsIQ is the **provider** under Article 3(3) — it places an AI system on the market and makes it available to others under its own name. OTA partners consuming the API are **deployers** under Article 3(4) — they use the AI system in their own business context. This distinction is critical: the aggregator as provider carries primary responsibility for technical documentation, transparency obligations, post-market monitoring, and provider liability. OTA partners as deployers carry responsibility for how they use and display the output to end consumers, including their own Article 50(4) transparency obligations toward customers. |
 
 ---
 
@@ -203,11 +204,12 @@ All data processing and storage occurs within Germany. The system serves output 
 | Obligation | Legal basis | Design response | Status |
 |---|---|---|---|
 | Label AI-generated content | Art. 50(1) | Every API response field carries `extraction_method`, `source`, `extracted_at`, and `confidence_score` metadata | ✅ Addressed in design |
-| Inform downstream users (OTAs) of AI involvement | Art. 50(4) | API documentation states AI extraction methodology; OTA contract guidance recommends consumer-facing labelling | ✅ Addressed in design |
+| Inform downstream users (OTAs) of AI involvement | Art. 50(4) | API documentation states AI extraction methodology; OTA contract clause **mandatory** (not recommended) — see Gap G1 | ⚠️ Contract clause pending |
 | Human oversight of outputs | Good practice / Art. 50 context | Human review queue for low-confidence extractions; no field goes live without validation | ✅ Addressed in design |
 | Data residency (GDPR / national law) | GDPR Art. 46 / German data law | Azure OpenAI Germany North; all infrastructure Germany-region | ✅ Addressed in design |
-| GPAI provider compliance | Art. 51–56 (provider obligation) | OpenAI is subject to GPAI obligations as model provider; aggregator uses it as deployer | ✅ Provider obligation, not aggregator |
+| GPAI provider compliance | Art. 51–56 (provider obligation) | OpenAI is subject to GPAI obligations as model provider; aggregator uses it as deployer of the GPAI model | ✅ Provider obligation, not aggregator |
 | EU AI Act registration (if required) | Art. 49 | Not required for Limited Risk systems | ✅ Not applicable |
+| Post-market monitoring | Art. 72 (provider obligation) | Plan to be documented before go-live — see Gap G4. LangSmith tracing provides the per-run data infrastructure | ⚠️ Plan pending — see G4 |
 
 ---
 
@@ -215,9 +217,10 @@ All data processing and storage occurs within Germany. The system serves output 
 
 | Gap | Description | Resolution | Target |
 |---|---|---|---|
-| **G1 — OTA partner transparency guidance** | OTA partners are not yet contractually required to label TermsIQ-sourced T&C data as AI-generated when displaying it to consumers. | Update OTA partner API agreements to include a transparency clause recommending or requiring consumer-facing labelling of AI-extracted T&C content | Before API go-live to OTA partners |
+| **G1 — OTA partner transparency obligation** | OTA partners are not yet contractually required to label TermsIQ-sourced T&C data as AI-generated when displaying it to consumers. As provider under Article 50(4), the aggregator has an obligation to ensure downstream deployers inform consumers — this cannot be a recommendation, it must be a contractual requirement. | Update OTA partner API agreements to include a **mandatory** transparency clause requiring consumer-facing labelling of AI-extracted T&C content. Non-compliance should be a breach of the API agreement. | Before API go-live to OTA partners |
 | **G2 — Formal EU AI Act classification documentation** | This document represents an internal classification assessment. It has not been reviewed by external legal counsel specialising in EU AI Act compliance. | Commission external AI Act legal review as part of the compliance budget (already budgeted at €2,000–5,000 in the ROI document) | Within 90 days of system build commencement |
 | **G3 — Scope change monitoring** | If TermsIQ scope expands to individualised recommendations (per-booking licence rejection prediction, per-driver risk scoring), the classification must be revisited and may become High Risk. | Establish a scope change review trigger: any new feature that introduces per-individual assessment must trigger a new classification assessment before development begins | Ongoing — embedded in product governance |
+| **G4 — Post-market monitoring plan** | As provider under Article 72 of the EU AI Act, the aggregator is required to have an active post-market monitoring system once TermsIQ is live. This is currently absent from the compliance documentation. Post-market monitoring means: tracking extraction accuracy over time, monitoring confidence score drift, logging human review overrides, and having a defined process for reporting serious incidents to the national market surveillance authority if incorrect data causes consumer harm. | Define and document a post-market monitoring plan before go-live, covering: (1) monthly accuracy spot-checks against source documents; (2) confidence score trend monitoring with alert thresholds; (3) human review override rate tracking; (4) incident classification criteria and national authority reporting procedure. LangSmith already provides the per-run tracing infrastructure — the monitoring plan formalises what to do with that data. | Before production go-live |
 
 ---
 
@@ -312,6 +315,7 @@ The following table of contents represents the full technical documentation pack
 ---
 
 *TermsIQ — EU AI Act Compliance Documentation*
-*Document version 1.1 — June 2026*
+*Document version 1.2 — June 2026*
 *Classification: Limited Risk — Article 50 EU AI Act*
+*Provider: Aggregator (Article 3(3)) | Deployer: OTA partners (Article 3(4))*
 *Next review: June 2027 or upon material scope change*

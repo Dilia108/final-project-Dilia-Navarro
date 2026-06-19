@@ -203,7 +203,7 @@ The LLM API call is stateless: the document text is sent, the structured extract
 | Data residency violation | Azure OpenAI Germany North — contractual Germany-region processing guaranteed. No other LLM provider in the pipeline. If Azure OpenAI experiences an outage, the nightly batch retries the following night — T&C documents do not change daily, so a one-night delay is operationally acceptable. |
 | Incorrect AI extraction displayed to end customer | Confidence threshold + mandatory human review gate — no extraction goes live in the API without validation.  fallback below minimum confidence threshold. Source, confidence score, and extracted_at date included in every API response. Nightly batch means errors are caught before reaching any customer. |
 | Data in transit | TLS 1.3 enforced for all API calls. API keys stored in secrets manager, never in code. |
-| Scope creep (future personal data inclusion) | Any pipeline extension that would introduce personal data (e.g. driver nationality for licence validation per booking) requires a new DPIA before development. Embedded in product governance policy. |
+| Scope creep (future personal data inclusion) | Any pipeline extension that would introduce personal data (e.g. driver nationality for licence validation per booking) requires a new DPIA before development. Embedded in product governance policy. **Highest-risk future scenario:** if an OTA partner begins sending customer booking data (driver name, nationality, licence number) alongside a T&C API query — for example to get a per-booking licence acceptance prediction — this would immediately trigger a full DPIA and likely a High Risk reclassification under Annex III. This scenario must be explicitly prohibited in the current API contract until a proper impact assessment is completed. |
 
 ---
 
@@ -296,6 +296,6 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 ---
 
 *TermsIQ — GDPR Documentation*
-*Document version 1.1 — June 2026*
+*Document version 1.2 — June 2026*
 *Data Controller: [Aggregator legal entity name — to be completed]*
 *Data Protection Officer: [DPO name and contact — to be completed before go-live]*
