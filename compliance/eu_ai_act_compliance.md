@@ -221,6 +221,35 @@ All data processing and storage occurs within Germany. The system serves output 
 | **G2 — Formal EU AI Act classification documentation** | This document represents an internal classification assessment. It has not been reviewed by external legal counsel specialising in EU AI Act compliance. | Commission external AI Act legal review as part of the compliance budget (already budgeted at €2,000–5,000 in the ROI document) | Within 90 days of system build commencement |
 | **G3 — Scope change monitoring** | If TermsIQ scope expands to individualised recommendations (per-booking licence rejection prediction, per-driver risk scoring), the classification must be revisited and may become High Risk. | Establish a scope change review trigger: any new feature that introduces per-individual assessment must trigger a new classification assessment before development begins | Ongoing — embedded in product governance |
 | **G4 — Post-market monitoring plan** | As provider under Article 72 of the EU AI Act, the aggregator is required to have an active post-market monitoring system once TermsIQ is live. This is currently absent from the compliance documentation. Post-market monitoring means: tracking extraction accuracy over time, monitoring confidence score drift, logging human review overrides, and having a defined process for reporting serious incidents to the national market surveillance authority if incorrect data causes consumer harm. | Define and document a post-market monitoring plan before go-live, covering: (1) monthly accuracy spot-checks against source documents; (2) confidence score trend monitoring with alert thresholds; (3) human review override rate tracking; (4) incident classification criteria and national authority reporting procedure. LangSmith already provides the per-run tracing infrastructure — the monitoring plan formalises what to do with that data. | Before production go-live |
+| **G5 — Legal review of web scraping and IP position** | TermsIQ's ingestion pipeline fetches supplier documents directly from supplier websites in some cases (web crawl route), which raises two distinct legal questions neither of which has been through external legal review yet: (1) whether automated access is permitted under each supplier site's own Terms of Use, separate from any EU AI Act or GDPR question; (2) whether extracting structured factual fields from a copyrighted document constitutes reproduction of that copyright, separate from any personal-data question. This is not a data protection matter — it sits under contract and IP law, and is tracked here, and in the risk register as R3 and R11, rather than in the GDPR documentation. | External legal review scoped specifically to web scraping permissibility and IP/copyright position (already budgeted — see ROI document, €3,000–8,000, one-off). See Section 3.5 below for the internal position pending that review. | Before any web-crawl ingestion route goes live; direct supplier document feeds (SFTP/email) are the default and unaffected by this gap |
+
+---
+
+### 3.5 Legal basis for supplier document processing — web scraping and IP position
+
+This section documents TermsIQ's internal legal position on two questions ahead of the external legal review tracked as Gap G5. It is not a substitute for that review — it is the working basis the system was designed against, so that the eventual review has something concrete to confirm, adjust, or overturn.
+
+**Is automated access to a supplier's website permitted?**
+
+This is a contract-law question, not a data-protection one — it turns on each supplier website's own Terms of Use, not on GDPR or the EU AI Act. TermsIQ's design treats this as a per-supplier question rather than a blanket assumption:
+
+- **Direct document feed (SFTP, email, or supplier-provided API) is the default ingestion route**, used wherever a supplier relationship exists. This sidesteps the question entirely — there is no scraping to assess if the supplier is providing the document directly.
+- **Web crawling is a fallback route only**, used where no direct feed exists, and only after a per-supplier check of that site's Terms of Use for anti-scraping clauses.
+- Where a supplier's Terms of Use explicitly prohibit automated access, the web-crawl route for that supplier is blocked and the supplier communication programme is used to request a direct feed instead.
+- This is the same logic documented as **R3** in the risk register: the mitigation is "default to direct document feed... use web crawling only as a fallback and only after legal sign-off per supplier."
+
+**Does extracting structured fields from a supplier's document infringe their copyright?**
+
+The working position, pending formal legal confirmation, rests on a distinction copyright law generally draws between an idea and its expression:
+
+- **Copyright protects the expression of a document — its specific wording, structure, and layout — not the underlying facts it states.** A pickup grace period of "60 minutes" is a fact; the sentence that states it is the supplier's expression.
+- TermsIQ's pipeline extracts and restates facts in a structured format (`grace_period_minutes: 60`) — it does not reproduce the supplier's original sentence as the API output.
+- The one place verbatim text appears is `source_text` — a short quote (enforced under 80 characters in the extraction prompt) used solely for human verification, not displayed to end consumers as a substitute for the source document. This is a deliberate design constraint, not just a UX choice: short, attributed quotes used for verification sit closer to established fair-use/fair-dealing territory than reproducing a document's substantive content would.
+- This is the same logic documented as **R11** in the risk register, rated **Low** likelihood and impact, with the same mitigation: legal review before go-live, and a preference for obtaining explicit supplier consent for T&C data feeds through the supplier communication programme — which, if achieved, would moot the copyright question entirely for that supplier.
+
+**Why this sits here and not in the GDPR documentation**
+
+GDPR and the EU AI Act both govern *how personal data and AI systems are regulated*. Web scraping permissibility and copyright are a different body of law — contract law and intellectual property law — that happen to apply to the same pipeline. Cross-referenced from the risk register (R3, R11) and the Technical Documentation outline (Section 10.3 below), this section is the substantive write-up; the other references point back here rather than duplicating it.
 
 ---
 
@@ -298,7 +327,7 @@ The following table of contents represents the full technical documentation pack
 **10. Legal and Compliance**
 - 10.1 EU AI Act classification assessment (cross-reference: this document) *(MVP)*
 - 10.2 GDPR documentation (cross-reference: gdpr_documentation.md) *(MVP)*
-- 10.3 Legal basis for supplier document processing (IP, web scraping, copyright)
+- 10.3 Legal basis for supplier document processing (IP, web scraping, copyright) — see Section 3.5 *(MVP)*
 - 10.4 OTA partner contract clauses (T&C data accuracy, AI disclosure)
 - 10.5 EU AI Act scope change monitoring procedure
 
@@ -315,7 +344,7 @@ The following table of contents represents the full technical documentation pack
 ---
 
 *TermsIQ — EU AI Act Compliance Documentation*
-*Document version 1.2 — June 2026*
+*Document version 1.3 — June 2026*
 *Classification: Limited Risk — Article 50 EU AI Act*
 *Provider: Aggregator (Article 3(3)) | Deployer: OTA partners (Article 3(4))*
 *Next review: June 2027 or upon material scope change*
