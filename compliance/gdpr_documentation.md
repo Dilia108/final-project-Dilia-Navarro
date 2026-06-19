@@ -213,26 +213,61 @@ The LLM API call is stateless: the document text is sent, the structured extract
 |---|---|
 | **Residual risk after mitigations** | **Low** |
 | **Rationale** | The core processing involves no personal data. The residual risks (inadvertent exposure in supplier documents; incorrect extraction displayed to end customer) are mitigated by contractual ZDR controls, pre-processing, and the human review gate. Single-provider architecture with Azure Germany North eliminates data residency uncertainty. |
-| **DPO sign-off required?** | Yes — before production go-live, the DPO should review this DPIA and confirm the residual risk rating |
+| **Independent review required?** | Yes — before production go-live, a qualified independent reviewer (see Section 3.6) should review this DPIA and confirm the residual risk rating |
 | **Review trigger** | Any pipeline change that introduces personal data; any change of LLM provider; annual review |
+
+---
+
+### 3.6 DPO status — exemption analysis
+
+GDPR Article 37 makes DPO appointment mandatory in three scenarios: (1) the organisation is a public authority; (2) core activities require regular, systematic, large-scale monitoring of individuals; (3) core activities involve large-scale processing of special category data (Art. 9) or criminal-records data (Art. 10).
+
+**TermsIQ's assessment against each trigger:**
+
+| Trigger | Applies to TermsIQ? | Rationale |
+|---|---|---|
+| Public authority or body | No | TermsIQ is operated by a private commercial aggregator |
+| Large-scale systematic monitoring of individuals | No | TermsIQ monitors supplier *documents* for changes — not the behaviour, location, or activity of natural persons. This is categorically different from the monitoring Article 37 targets (e.g. behavioural advertising, location tracking) |
+| Large-scale special category data processing | No | TermsIQ processes commercial T&C field values (TPL amounts, grace periods, licence rules) — none of which are special category data under Art. 9 or Art. 10 |
+
+**Conclusion: a formally designated DPO is not legally mandatory for TermsIQ under Article 37**, in either the vendor's role as controller (for the OpenAI relationship) or as processor (for the client relationship). This exemption analysis should be retained as a standing document — regulators increasingly expect organisations to show their reasoning for *not* appointing a DPO, not just silence on the question.
+
+**What replaces a formal DPO in practice:**
+
+- **A documented exemption analysis** (this section) — reviewed annually or on any material scope change
+- **A qualified independent reviewer** for the DPIA before go-live — this can be the external legal/compliance counsel already budgeted in the project's compliance line items; it does not require a permanently appointed DPO
+- **A named internal point of contact** for data protection matters — informal, but someone accountable must be named even without the formal title
+
+If TermsIQ's scope expands to include customer or driver personal data (see the scope-creep flag in Section 3.4), this exemption analysis must be revisited — that kind of expansion could plausibly trigger the large-scale monitoring threshold and make a formal DPO appointment necessary.
+
+**Two separate DPA relationships, not one:**
+
+Because the vendor sits between OpenAI and the client, there are two distinct Data Processing Agreements, with the vendor playing a different role in each:
+
+| Relationship | Vendor's role | Counterparty's role | What it covers |
+|---|---|---|---|
+| Vendor ↔ OpenAI (via Azure) | **Controller** | OpenAI = **Processor** | Vendor decides to send document text to OpenAI for extraction; OpenAI processes it on the vendor's behalf, under ZDR terms, Germany North region |
+| Vendor ↔ Client (OTA/aggregator) | **Processor** | Client = **Controller** | Client engages the vendor to process data on their behalf (currently minimal, since no customer data is in scope); must explicitly disclose OpenAI as a sub-processor |
+
+The client never contracts directly with OpenAI — they have no relationship with it at all. Their only data-protection relationship is with the vendor. The vendor's DPA with the client should explicitly name OpenAI as a sub-processor and confirm Germany-region processing throughout, so the client's own DPO (if they have one — most OTAs of meaningful size already do, for reasons unrelated to TermsIQ) can complete their own review quickly.
 
 ---
 
 ## Section 4 — Data Subject Rights
 
-TermsIQ processes minimal personal data (content team staff, supplier contacts, API request logs). The following table sets out how each right under GDPR Chapter III is addressed.
+TermsIQ processes minimal personal data (content team staff, supplier contacts, API request logs). The following table sets out how each right under GDPR Chapter III is addressed. As established in Section 3.6, TermsIQ is not required to appoint a formally designated DPO — rights requests below are handled by the named internal data protection point of contact.
 
 | Right | Applicable to TermsIQ? | How it is addressed |
 |---|---|---|
-| **Right of access (Art. 15)** | Yes — content team staff and supplier contacts can request access to their personal data | Requests directed to the Data Protection Officer. Content team data held in the review interface database; supplier contact data in the supplier record. Both are exportable within 30 days of request. |
-| **Right to rectification (Art. 16)** | Yes — incorrect personal data (e.g. wrong name, wrong email) can be corrected | DPO processes correction requests. Data updated in the relevant system within 30 days. Audit trail entries that include reviewer ID are not deleted but a correction note is appended. |
+| **Right of access (Art. 15)** | Yes — content team staff and supplier contacts can request access to their personal data | Requests directed to the internal data protection point of contact. Content team data held in the review interface database; supplier contact data in the supplier record. Both are exportable within 30 days of request. |
+| **Right to rectification (Art. 16)** | Yes — incorrect personal data (e.g. wrong name, wrong email) can be corrected | Data protection point of contact processes correction requests. Data updated in the relevant system within 30 days. Audit trail entries that include reviewer ID are not deleted but a correction note is appended. |
 | **Right to erasure (Art. 17)** | Partial — audit trail entries containing reviewer IDs cannot be erased while the retention period applies (regulatory obligation), but other personal data can be erased on request | Login accounts and supplier contacts can be deleted on request. Audit trail reviewer IDs are pseudonymised (replaced with a role reference) where erasure is requested during the retention period. |
 | **Right to restriction (Art. 18)** | Yes | Processing can be restricted pending resolution of accuracy disputes. Restricted accounts are flagged in the review interface. |
 | **Right to data portability (Art. 20)** | Yes — for content team staff and supplier contacts where processing is based on contract | Data exported in machine-readable format (CSV/JSON) within 30 days of request. |
-| **Right to object (Art. 21)** | Yes — for processing based on legitimate interest | Objections assessed by the DPO. If legitimate interest is overridden by the data subject's interests, processing ceases. |
+| **Right to object (Art. 21)** | Yes — for processing based on legitimate interest | Objections assessed by the data protection point of contact, with external legal counsel consulted where needed. If legitimate interest is overridden by the data subject's interests, processing ceases. |
 | **Rights related to automated decision-making (Art. 22)** | Not applicable | TermsIQ does not make automated decisions about individuals. The confidence scoring system flags extractions for human review — it does not make decisions about natural persons. |
 
-**How to exercise rights:** Data subjects should contact the Data Protection Officer at [DPO contact to be defined before go-live]. Requests are acknowledged within 72 hours and fulfilled within 30 days (extendable by 2 months for complex requests with notification).
+**How to exercise rights:** Data subjects should contact the internal data protection point of contact at [contact to be defined before go-live]. Requests are acknowledged within 72 hours and fulfilled within 30 days (extendable by 2 months for complex requests with notification).
 
 ---
 
@@ -243,13 +278,15 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 | Attribute | Detail |
 |---|---|
 | **Service** | OpenAI GPT-4o via Azure OpenAI Service |
+| **Roles** | Vendor = **Controller**; OpenAI/Azure = **Processor**. The vendor decides what data is sent and why; OpenAI processes it on the vendor's behalf under the terms below. |
 | **What data is sent** | Supplier T&C document text (not personal data in normal operation) |
 | **Purpose** | LLM-based T&C field extraction (primary provider) |
 | **Legal transfer mechanism** | Standard Contractual Clauses (SCCs) not required — Azure OpenAI Germany North processes data within Germany/EU. Processing governed by Microsoft Azure Data Processing Agreement with EU GDPR terms. |
 | **Data storage location** | Germany North (Azure region) — contractually guaranteed |
 | **Provider training on inputs** | No — Azure OpenAI Enterprise API terms exclude customer data from model training |
 | **Retention by provider** | Per Azure OpenAI terms: API inputs and outputs not retained beyond the API call by default (zero-data-retention available) |
-| **Action required** | Confirm ZDR terms are enabled on the Azure OpenAI subscription before go-live. Obtain and store a copy of the Azure DPA. |
+| **Sub-processor disclosure to client** | Because the vendor acts as processor for the client (see Section 5.4), OpenAI/Azure must be explicitly disclosed to the client as a sub-processor in the vendor-client DPA, including the Germany North region commitment and ZDR terms. |
+| **Action required** | Confirm ZDR terms are enabled on the Azure OpenAI subscription before go-live. Obtain and store a copy of the Azure DPA — this is the vendor's own DPA, signed by the vendor as controller, separate from the vendor-client DPA in Section 5.4. |
 
 ---
 
@@ -278,6 +315,27 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 
 ---
 
+### 5.4 Vendor ↔ Client DPA (vendor as processor)
+
+This is a separate agreement from Section 5.1 — here, the vendor is the **processor**, not the controller, and the client (the OTA/aggregator buying TermsIQ) is the **controller**. This DPA must be in place before the client's data (currently minimal — see Preliminary Note) is processed under the commercial relationship.
+
+| Required clause | What it should state |
+|---|---|
+| **Subject matter and duration** | Processing is limited to supplier T&C documents for the contract term; explicitly excludes customer/booking personal data unless a future amendment is signed |
+| **Nature and purpose** | Extraction of structured T&C fields for API delivery to the client |
+| **Type of data and data subjects** | Currently none, or minimal (supplier contact details only) — stated explicitly so scope creep requires a contract amendment, not a silent expansion |
+| **Sub-processor disclosure** | OpenAI/Azure OpenAI Service (Germany North, ZDR terms) must be named explicitly — see Section 5.1. The client has the right to be informed of any new sub-processor before it is engaged. |
+| **Security measures** | TLS 1.3 in transit, Germany-region encryption at rest, access controls, the audit trail and confidence-scoring system already built into the pipeline |
+| **Data subject rights support** | Vendor commits to supporting the client in fulfilling any data subject request within the statutory timeframe, per Section 4 |
+| **Breach notification** | Vendor notifies the client promptly (target: within 24–72 hours of becoming aware) of any breach involving the client's data |
+| **Audit rights** | Client may request evidence of compliance, including this DPIA, the Azure DPA, and relevant certifications |
+| **Deletion/return at contract end** | What happens to any client-related data the vendor holds when the relationship ends |
+| **International transfer safeguards** | Confirms all processing — vendor infrastructure and the OpenAI sub-processor — stays within Germany/EU, avoiding the need for Standard Contractual Clauses |
+
+**Action required:** Draft and execute this DPA with each client before go-live, alongside the OTA partner transparency clause (Gap G1 in the EU AI Act compliance documentation).
+
+---
+
 ## Section 6 — Data Governance Summary
 
 | Control | Status | Owner |
@@ -285,17 +343,20 @@ TermsIQ processes minimal personal data (content team staff, supplier contacts, 
 | Privacy by design embedded in pipeline architecture | ✅ | Head of Engineering |
 | Data minimisation — only document text sent to LLM (no booking or customer data) | ✅ | Head of Engineering |
 | Germany-region data residency enforced for primary infrastructure | ✅ | Head of Engineering |
-| DPIA completed for highest-risk processing activity | ✅ This document | DPO |
-| DPO review and sign-off before go-live | ⚠️ Pending | DPO |
-| Data subject rights procedure documented | ✅ This document | DPO |
-| Vendor DPAs obtained (Azure) | ⚠️ In progress | Legal |
+| DPIA completed for highest-risk processing activity | ✅ This document | Internal data protection point of contact |
+| DPO exemption analysis documented (Art. 37 not triggered) | ✅ This document, Section 3.6 | Internal data protection point of contact |
+| Independent qualified review of DPIA before go-live | ⚠️ Pending | External legal/compliance counsel |
+| Data subject rights procedure documented | ✅ This document | Internal data protection point of contact |
+| Vendor's own DPA with OpenAI/Azure (vendor as controller) | ⚠️ In progress | Legal |
+| Vendor-client DPA (vendor as processor, Section 5.4) | ⚠️ To be drafted per client | Legal |
 | Retention schedules implemented in system | ⚠️ To be built | Head of Engineering |
 | Personal data pre-scan before LLM submission | ⚠️ To be built | Head of Engineering |
-| Annual GDPR review scheduled | ⚠️ To be scheduled | DPO |
+| Annual GDPR review scheduled | ⚠️ To be scheduled | Internal data protection point of contact |
 
 ---
 
 *TermsIQ — GDPR Documentation*
-*Document version 1.2 — June 2026*
-*Data Controller: [Aggregator legal entity name — to be completed]*
-*Data Protection Officer: [DPO name and contact — to be completed before go-live]*
+*Document version 1.3 — June 2026*
+*Data Controller (for client-relationship data): [Aggregator legal entity name — to be completed]*
+*Data Controller (for OpenAI relationship): Vendor*
+*Formally designated DPO: Not legally required (see Section 3.6) — internal data protection point of contact: [name and contact to be completed before go-live]*
